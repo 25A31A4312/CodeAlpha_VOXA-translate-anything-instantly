@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VOXA — AI Powered Language Translator</title>
+  <meta name="description" content="VOXA — Translate 50+ languages instantly with voice input and neural translation." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Background orbs -->
+  <div class="bg-orbs" aria-hidden="true">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toast-container"></div>
+
+  <!-- ── HEADER ── -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 8l6 6"/><path d="M4 14l6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/>
+            <path d="M22 22l-5-10-5 10"/><path d="M14 18h6"/>
+          </svg>
+        </div>
+        <span class="brand-name">VOXA</span>
+        <span class="brand-badge">AI</span>
+      </div>
+
+      <div class="header-right">
+        <button id="btn-history" class="hdr-btn" title="Translation History">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+            <path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>
+          </svg>
+          History
+        </button>
+        <button id="btn-theme" class="hdr-btn" title="Toggle theme">
+          <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+          <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+          <span id="theme-label">Light</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── MAIN ── -->
+  <main class="main">
+
+    <!-- Hero -->
+    <section class="hero">
+      <p class="hero-live">
+        <span class="live-dot"></span>
+        Neural Engine Active
+      </p>
+      <h1 class="hero-title">Translate Anything, <span class="grad">Instantly.</span></h1>
+      <p class="hero-sub">Type, speak, or paste — VOXA handles 50+ languages in real time.</p>
+      <div class="feature-pills">
+        <span>🌐 50+ Languages</span>
+        <span>🎤 Voice Input</span>
+        <span>⚡ Instant</span>
+        <span>🔒 Private</span>
+      </div>
+    </section>
+
+    <!-- Language bar -->
+    <div class="lang-bar">
+      <div class="lang-field">
+        <label class="lang-label" for="source-lang">From</label>
+        <div class="sel-wrap">
+          <select id="source-lang">
+            <option value="auto">Auto Detect</option>
+          </select>
+          <svg class="sel-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+      </div>
+
+      <button id="btn-swap" class="swap-btn" title="Swap languages">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M7 16V4m0 0L3 8m4-4l4 4"/><path d="M17 8v12m0 0l4-4m-4 4l-4-4"/>
+        </svg>
+      </button>
+
+      <div class="lang-field">
+        <label class="lang-label" for="target-lang">To</label>
+        <div class="sel-wrap">
+          <select id="target-lang"></select>
+          <svg class="sel-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick language pills -->
+    <div class="quick-bar">
+      <span class="quick-label">Quick:</span>
+      <div class="quick-pills">
+        <button class="qpill" data-code="es">🇪🇸 Spanish</button>
+        <button class="qpill" data-code="fr">🇫🇷 French</button>
+        <button class="qpill" data-code="de">🇩🇪 German</button>
+        <button class="qpill" data-code="ja">🇯🇵 Japanese</button>
+        <button class="qpill" data-code="zh">🇨🇳 Chinese</button>
+        <button class="qpill" data-code="ar">🇸🇦 Arabic</button>
+        <button class="qpill" data-code="hi">🇮🇳 Hindi</button>
+        <button class="qpill" data-code="te">🇮🇳 Telugu</button>
+        <button class="qpill" data-code="ru">🇷🇺 Russian</button>
+        <button class="qpill" data-code="pt">🇧🇷 Portuguese</button>
+      </div>
+    </div>
+
+    <!-- Translation panels -->
+    <div class="panels">
+
+      <!-- Source -->
+      <div class="panel">
+        <div class="panel-top">
+          <span class="panel-label">Source Text</span>
+          <span id="char-count" class="char-count">0 / 5000</span>
+        </div>
+
+        <!-- Detected language badge -->
+        <div id="detected-badge" class="detected-badge" style="display:none">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          Detected: <strong id="detected-name">—</strong>
+        </div>
+
+        <textarea
+          id="source-text"
+          class="t-area"
+          placeholder="Type or paste text… (Enter to translate, Shift+Enter for new line)"
+          maxlength="5000"
+          spellcheck="true"
+        ></textarea>
+
+        <!-- Stats -->
+        <div id="stats-bar" class="stats-bar" style="display:none">
+          <span id="stat-words">Words: 0</span>
+          <span class="sdot">·</span>
+          <span id="stat-read">~1 min read</span>
+        </div>
+
+        <div class="panel-footer">
+          <div class="pf-left">
+            <button id="btn-mic" class="icon-btn" title="Voice input">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+              </svg>
+              <span class="mic-ring"></span>
+            </button>
+            <button id="btn-clear" class="icon-btn" title="Clear">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                <path d="M10 11v6"/><path d="M14 11v6"/>
+              </svg>
+            </button>
+          </div>
+          <div class="pf-right">
+            <button id="btn-translate" class="translate-btn">
+              <span class="tb-text">Translate</span>
+              <div class="tb-spinner" style="display:none"></div>
+              <svg class="tb-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Target -->
+      <div class="panel">
+        <div class="panel-top">
+          <span class="panel-label">Translation</span>
+          <span id="target-pill" class="target-pill">English</span>
+        </div>
+
+        <div id="output-area" class="output-area">
+          <div id="output-placeholder" class="output-placeholder">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 8l6 6"/><path d="M4 14l6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/>
+              <path d="M22 22l-5-10-5 10"/><path d="M14 18h6"/>
+            </svg>
+            <p>Translation appears here</p>
+            <small>Press Enter or click Translate</small>
+          </div>
+          <div id="output-skeleton" class="skeleton-wrap" style="display:none">
+            <div class="skel long"></div>
+            <div class="skel medium"></div>
+            <div class="skel short"></div>
+          </div>
+          <div id="output-text" class="output-text" style="display:none"></div>
+        </div>
+
+        <div class="panel-footer">
+          <div class="pf-left">
+            <button id="btn-tts" class="icon-btn" title="Listen" disabled>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+              </svg>
+            </button>
+            <button id="btn-fav" class="icon-btn" title="Save to favorites" disabled>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+              </svg>
+            </button>
+          </div>
+          <div class="pf-right">
+            <button id="btn-copy" class="icon-btn" title="Copy" disabled>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+            </button>
+            <button id="btn-download" class="icon-btn" title="Download" disabled>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ── HISTORY DRAWER ── -->
+  <div id="drawer-overlay" class="drawer-overlay" style="display:none"></div>
+  <aside id="history-drawer" class="history-drawer" aria-hidden="true">
+    <div class="drawer-header">
+      <h2 class="drawer-title">History & Favorites</h2>
+      <button id="btn-close-drawer" class="icon-btn" title="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Tabs -->
+    <div class="drawer-tabs">
+      <button class="dtab active" data-tab="history">History</button>
+      <button class="dtab" data-tab="favorites">⭐ Favorites</button>
+    </div>
+
+    <div id="tab-history" class="tab-panel">
+      <div id="history-list" class="item-list"></div>
+      <div id="history-empty" class="list-empty">
+        <p>No history yet.<br/>Translations will appear here.</p>
+      </div>
+      <div class="drawer-footer-actions">
+        <button id="btn-clear-history" class="danger-btn">Clear History</button>
+      </div>
+    </div>
+
+    <div id="tab-favorites" class="tab-panel" style="display:none">
+      <div id="favorites-list" class="item-list"></div>
+      <div id="favorites-empty" class="list-empty">
+        <p>No favorites yet.<br/>Star a translation to save it.</p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>Powered by <strong>VOXA Neural Translation Engine</strong> — Fast, private & free.</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
