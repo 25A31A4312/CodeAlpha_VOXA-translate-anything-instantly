@@ -180,21 +180,12 @@ function init() {
    BUILD LANGUAGE DROPDOWNS
 ───────────────────────────────────────────────────── */
 function buildSelects() {
-  /* Source: includes Auto Detect */
-  D.srcLang.innerHTML = '';
-  LANGUAGES.forEach(({ code, name }) => {
-    const o = new Option(name, code);
-    D.srcLang.appendChild(o);
-  });
-  D.srcLang.value = 'auto';
-
-  /* Target: exclude Auto Detect */
-  D.tgtLang.innerHTML = '';
-  LANGUAGES.filter(l => l.code !== 'auto').forEach(({ code, name }) => {
-    const o = new Option(name, code);
-    D.tgtLang.appendChild(o);
-  });
-  D.tgtLang.value = 'en'; // default to English
+  /*
+   * Options are already hardcoded in index.html.
+   * Just set default selected values — do NOT clear innerHTML.
+   */
+  D.srcLang.value = 'auto'; // default source: Auto Detect
+  D.tgtLang.value = 'en';   // default target: English
 }
 
 function getLangName(code) {
