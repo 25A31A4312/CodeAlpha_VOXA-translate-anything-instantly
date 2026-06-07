@@ -1,172 +1,234 @@
 /**
  * VOXA — script.js
- * AI Powered Language Translator
- * Clean rewrite — all buttons functional, no broken references.
+ * Translation engine: Google Translate unofficial API
+ * (works in browser, no API key, no CORS issues)
  */
 
 'use strict';
 
-/* ─────────────────────────────────────────
-   CONFIG
-───────────────────────────────────────── */
-// MyMemory: free, no key needed, 5000 chars/day
-const MYMEMORY_URL = 'https://api.mymemory.translated.net/get';
+/* ─────────────────────────────────────────────────────
+   LANGUAGE LIST — all languages with codes Google uses
+───────────────────────────────────────────────────── */
+const LANGUAGES = [
+  { code: 'auto',  name: 'Auto Detect' },
+  { code: 'af',    name: 'Afrikaans' },
+  { code: 'ar',    name: 'Arabic' },
+  { code: 'bn',    name: 'Bengali' },
+  { code: 'cs',    name: 'Czech' },
+  { code: 'da',    name: 'Danish' },
+  { code: 'de',    name: 'German' },
+  { code: 'el',    name: 'Greek' },
+  { code: 'en',    name: 'English' },
+  { code: 'es',    name: 'Spanish' },
+  { code: 'fi',    name: 'Finnish' },
+  { code: 'fr',    name: 'French' },
+  { code: 'gu',    name: 'Gujarati' },
+  { code: 'he',    name: 'Hebrew' },
+  { code: 'hi',    name: 'Hindi' },
+  { code: 'hr',    name: 'Croatian' },
+  { code: 'hu',    name: 'Hungarian' },
+  { code: 'id',    name: 'Indonesian' },
+  { code: 'it',    name: 'Italian' },
+  { code: 'ja',    name: 'Japanese' },
+  { code: 'kn',    name: 'Kannada' },
+  { code: 'ko',    name: 'Korean' },
+  { code: 'ml',    name: 'Malayalam' },
+  { code: 'mr',    name: 'Marathi' },
+  { code: 'ms',    name: 'Malay' },
+  { code: 'nl',    name: 'Dutch' },
+  { code: 'no',    name: 'Norwegian' },
+  { code: 'pa',    name: 'Punjabi' },
+  { code: 'pl',    name: 'Polish' },
+  { code: 'pt',    name: 'Portuguese' },
+  { code: 'ro',    name: 'Romanian' },
+  { code: 'ru',    name: 'Russian' },
+  { code: 'sk',    name: 'Slovak' },
+  { code: 'sv',    name: 'Swedish' },
+  { code: 'sw',    name: 'Swahili' },
+  { code: 'ta',    name: 'Tamil' },
+  { code: 'te',    name: 'Telugu' },   // ← Telugu included
+  { code: 'th',    name: 'Thai' },
+  { code: 'tr',    name: 'Turkish' },
+  { code: 'uk',    name: 'Ukrainian' },
+  { code: 'ur',    name: 'Urdu' },
+  { code: 'vi',    name: 'Vietnamese' },
+  { code: 'zh-CN', name: 'Chinese (Simplified)' },
+  { code: 'zh-TW', name: 'Chinese (Traditional)' },
+];
 
-// LibreTranslate public mirror — fallback
-const LT_TRANSLATE = 'https://translate.fedilab.app/translate';
-const LT_DETECT    = 'https://translate.fedilab.app/detect';
-const LT_LANGS = 'https://translate.fedilab.app/languages?format=json';
-const CHAR_MAX  = 5000;
-const CHAR_WARN = 4000;
-const HIST_MAX  = 50;
-const FAV_MAX   = 100;
-const AUTO_DELAY = 1000; // ms debounce for auto-translate
-
-// localStorage keys
-const K_THEME = 'voxa_theme';
-const K_HIST  = 'voxa_hist';
-const K_FAVS  = 'voxa_favs';
-
-/* ─────────────────────────────────────────
-   SPEECH LANGUAGE MAP  (code → BCP-47)
-───────────────────────────────────────── */
+/* Speech recognition BCP-47 map */
 const SPEECH_MAP = {
   en:'en-US', hi:'hi-IN', te:'te-IN', ta:'ta-IN', kn:'kn-IN',
   ml:'ml-IN', bn:'bn-IN', gu:'gu-IN', mr:'mr-IN', pa:'pa-IN',
   ur:'ur-PK', fr:'fr-FR', de:'de-DE', es:'es-ES', it:'it-IT',
-  pt:'pt-BR', ru:'ru-RU', ja:'ja-JP', zh:'zh-CN', ko:'ko-KR',
-  ar:'ar-SA', nl:'nl-NL', pl:'pl-PL', tr:'tr-TR', sv:'sv-SE',
-  da:'da-DK', fi:'fi-FI', vi:'vi-VN', id:'id-ID', uk:'uk-UA',
-  cs:'cs-CZ', ro:'ro-RO', hu:'hu-HU', el:'el-GR', he:'he-IL',
-  th:'th-TH',
+  pt:'pt-BR', ru:'ru-RU', ja:'ja-JP', ko:'ko-KR', ar:'ar-SA',
+  nl:'nl-NL', pl:'pl-PL', tr:'tr-TR', sv:'sv-SE', da:'da-DK',
+  fi:'fi-FI', vi:'vi-VN', id:'id-ID', uk:'uk-UA', cs:'cs-CZ',
+  ro:'ro-RO', hu:'hu-HU', el:'el-GR', he:'he-IL', th:'th-TH',
+  zh:'zh-CN', 'zh-CN':'zh-CN', 'zh-TW':'zh-TW',
 };
-const bcp47 = code => SPEECH_MAP[code] || `${code}-${code.toUpperCase()}`;
+const toBCP47 = code => SPEECH_MAP[code] || code;
 
-/* ─────────────────────────────────────────
-   BUILT-IN LANGUAGE LIST (fallback)
-───────────────────────────────────────── */
-const LANG_LIST = [
-  {code:'en',name:'English'},{code:'es',name:'Spanish'},{code:'fr',name:'French'},
-  {code:'de',name:'German'},{code:'it',name:'Italian'},{code:'pt',name:'Portuguese'},
-  {code:'ru',name:'Russian'},{code:'ja',name:'Japanese'},{code:'zh',name:'Chinese'},
-  {code:'ar',name:'Arabic'},{code:'ko',name:'Korean'},{code:'nl',name:'Dutch'},
-  {code:'pl',name:'Polish'},{code:'tr',name:'Turkish'},{code:'sv',name:'Swedish'},
-  {code:'da',name:'Danish'},{code:'fi',name:'Finnish'},{code:'hi',name:'Hindi'},
-  {code:'te',name:'Telugu'},{code:'ta',name:'Tamil'},{code:'kn',name:'Kannada'},
-  {code:'ml',name:'Malayalam'},{code:'bn',name:'Bengali'},{code:'gu',name:'Gujarati'},
-  {code:'mr',name:'Marathi'},{code:'pa',name:'Punjabi'},{code:'ur',name:'Urdu'},
-  {code:'vi',name:'Vietnamese'},{code:'id',name:'Indonesian'},{code:'uk',name:'Ukrainian'},
-  {code:'cs',name:'Czech'},{code:'ro',name:'Romanian'},{code:'hu',name:'Hungarian'},
-  {code:'el',name:'Greek'},{code:'he',name:'Hebrew'},{code:'th',name:'Thai'},
-];
-
-/* ─────────────────────────────────────────
-   STATE
-───────────────────────────────────────── */
-const S = {
-  langs:       [],
-  translating: false,
-  micActive:   false,
-  recognition: null,
-  drawerOpen:  false,
-  activeTab:   'history',
-  translation: '',
-  srcText:     '',
-  srcLang:     '',
-  tgtLang:     '',
-  history:     [],
-  favorites:   [],
-  autoTimer:   null,
+/* ─────────────────────────────────────────────────────
+   APP STATE
+───────────────────────────────────────────────────── */
+const state = {
+  translating:  false,
+  micActive:    false,
+  recognition:  null,
+  autoTimer:    null,
+  translation:  '',
+  srcText:      '',
+  srcCode:      '',
+  tgtCode:      '',
+  history:      [],
+  favorites:    [],
+  activeTab:    'history',
+  drawerOpen:   false,
 };
 
-/* ─────────────────────────────────────────
-   ELEMENT GETTERS  (fail-safe)
-───────────────────────────────────────── */
-const el = id => document.getElementById(id);
+/* localStorage keys */
+const KEY_THEME = 'voxa_theme';
+const KEY_HIST  = 'voxa_hist';
+const KEY_FAVS  = 'voxa_favs';
 
-// Cache all needed elements once DOM is ready
-let E = {};
-function cacheElements() {
-  E = {
-    // Header
-    btnHistory:      el('btn-history'),
-    btnTheme:        el('btn-theme'),
-    themeLabel:      el('theme-label'),
-    iconMoon:        document.querySelector('.icon-moon'),
-    iconSun:         document.querySelector('.icon-sun'),
-    // Lang selectors
-    sourceLang:      el('source-lang'),
-    targetLang:      el('target-lang'),
-    btnSwap:         el('btn-swap'),
-    targetPill:      el('target-pill'),
-    // Source panel
-    sourceText:      el('source-text'),
-    charCount:       el('char-count'),
-    detectedBadge:   el('detected-badge'),
-    detectedName:    el('detected-name'),
-    statsBar:        el('stats-bar'),
-    statWords:       el('stat-words'),
-    statRead:        el('stat-read'),
-    btnMic:          el('btn-mic'),
-    btnClear:        el('btn-clear'),
-    btnTranslate:    el('btn-translate'),
-    tbText:          document.querySelector('.tb-text'),
-    tbSpinner:       document.querySelector('.tb-spinner'),
-    tbArrow:         document.querySelector('.tb-arrow'),
-    // Target panel
-    outputPlaceholder: el('output-placeholder'),
-    outputSkeleton:  el('output-skeleton'),
-    outputText:      el('output-text'),
-    btnTts:          el('btn-tts'),
-    btnFav:          el('btn-fav'),
-    btnCopy:         el('btn-copy'),
-    btnDownload:     el('btn-download'),
-    // Quick pills
-    quickPills:      document.querySelectorAll('.qpill'),
-    // Drawer
-    drawerOverlay:   el('drawer-overlay'),
-    historyDrawer:   el('history-drawer'),
-    btnCloseDrawer:  el('btn-close-drawer'),
-    drawerTabs:      document.querySelectorAll('.dtab'),
-    tabHistory:      el('tab-history'),
-    tabFavorites:    el('tab-favorites'),
-    historyList:     el('history-list'),
-    historyEmpty:    el('history-empty'),
-    favoritesList:   el('favorites-list'),
-    favoritesEmpty:  el('favorites-empty'),
-    btnClearHist:    el('btn-clear-history'),
-    // Toast
-    toastContainer:  el('toast-container'),
+/* ─────────────────────────────────────────────────────
+   DOM — grabbed after DOMContentLoaded
+───────────────────────────────────────────────────── */
+let D = {};
+
+document.addEventListener('DOMContentLoaded', () => {
+  /* Grab every element we need */
+  D = {
+    srcLang:       document.getElementById('src-lang'),
+    tgtLang:       document.getElementById('tgt-lang'),
+    btnSwap:       document.getElementById('btn-swap'),
+    tgtPill:       document.getElementById('tgt-pill'),
+
+    srcText:       document.getElementById('src-text'),
+    charCt:        document.getElementById('char-ct'),
+    detectedWrap:  document.getElementById('detected-wrap'),
+    detectedLang:  document.getElementById('detected-lang'),
+    srcStats:      document.getElementById('src-stats'),
+    wordCt:        document.getElementById('word-ct'),
+    readTime:      document.getElementById('read-time'),
+
+    btnMic:        document.getElementById('btn-mic'),
+    btnClear:      document.getElementById('btn-clear'),
+    btnTranslate:  document.getElementById('btn-translate'),
+    tbLabel:       document.getElementById('tb-label'),
+    tbSpin:        document.getElementById('tb-spin'),
+    tbArrow:       document.getElementById('tb-arrow'),
+
+    outPlaceholder: document.getElementById('out-placeholder'),
+    outSkeleton:    document.getElementById('out-skeleton'),
+    outResult:      document.getElementById('out-result'),
+
+    btnTts:        document.getElementById('btn-tts'),
+    btnFav:        document.getElementById('btn-fav'),
+    btnCopy:       document.getElementById('btn-copy'),
+    btnDl:         document.getElementById('btn-dl'),
+
+    btnHistory:    document.getElementById('btn-history'),
+    btnTheme:      document.getElementById('btn-theme'),
+    themeLabel:    document.getElementById('theme-label'),
+    iconMoon:      document.getElementById('icon-moon'),
+    iconSun:       document.getElementById('icon-sun'),
+
+    overlay:       document.getElementById('overlay'),
+    drawer:        document.getElementById('drawer'),
+    btnCloseDrawer:document.getElementById('btn-close-drawer'),
+    drawerTabs:    document.querySelectorAll('.dtab'),
+    tabHistory:    document.getElementById('tab-history'),
+    tabFavorites:  document.getElementById('tab-favorites'),
+    histList:      document.getElementById('hist-list'),
+    histEmpty:     document.getElementById('hist-empty'),
+    favList:       document.getElementById('fav-list'),
+    favEmpty:      document.getElementById('fav-empty'),
+    btnClrHist:    document.getElementById('btn-clr-hist'),
+
+    quickPills:    document.querySelectorAll('.qpill'),
+    toastBox:      document.getElementById('toast-container'),
   };
-}
 
-/* ─────────────────────────────────────────
-   INIT
-───────────────────────────────────────── */
-document.addEventListener('DOMContentLoaded', async () => {
-  cacheElements();
-  loadTheme();
-  loadStorage();
-  bindEvents();
-  await loadLanguages();
-  setDefaultTarget();
-  renderHistory();
-  renderFavorites();
+  /* Verify critical elements exist */
+  const missing = ['srcLang','tgtLang','srcText','btnTranslate','outResult']
+    .filter(k => !D[k]);
+  if (missing.length) {
+    console.error('[VOXA] Missing DOM elements:', missing);
+    return;
+  }
+
+  init();
 });
 
-/* ─────────────────────────────────────────
+/* ─────────────────────────────────────────────────────
+   INIT
+───────────────────────────────────────────────────── */
+function init() {
+  buildSelects();
+  loadTheme();
+  loadStorage();
+  renderHistory();
+  renderFavorites();
+  bindEvents();
+  syncPills();
+  updateTgtPill();
+}
+
+/* ─────────────────────────────────────────────────────
+   BUILD LANGUAGE DROPDOWNS
+───────────────────────────────────────────────────── */
+function buildSelects() {
+  /* Source: includes Auto Detect */
+  D.srcLang.innerHTML = '';
+  LANGUAGES.forEach(({ code, name }) => {
+    const o = new Option(name, code);
+    D.srcLang.appendChild(o);
+  });
+  D.srcLang.value = 'auto';
+
+  /* Target: exclude Auto Detect */
+  D.tgtLang.innerHTML = '';
+  LANGUAGES.filter(l => l.code !== 'auto').forEach(({ code, name }) => {
+    const o = new Option(name, code);
+    D.tgtLang.appendChild(o);
+  });
+  D.tgtLang.value = 'en'; // default to English
+}
+
+function getLangName(code) {
+  if (!code || code === 'auto') return 'Auto';
+  const found = LANGUAGES.find(l => l.code === code);
+  return found ? found.name : code.toUpperCase();
+}
+
+function updateTgtPill() {
+  if (D.tgtPill) {
+    D.tgtPill.textContent = getLangName(D.tgtLang.value);
+  }
+}
+
+function syncPills() {
+  const tgt = D.tgtLang.value;
+  D.quickPills.forEach(p => {
+    p.classList.toggle('active', p.dataset.code === tgt);
+  });
+}
+
+/* ─────────────────────────────────────────────────────
    THEME
-───────────────────────────────────────── */
+───────────────────────────────────────────────────── */
 function loadTheme() {
-  applyTheme(localStorage.getItem(K_THEME) || 'dark');
+  applyTheme(localStorage.getItem(KEY_THEME) || 'dark');
 }
 
 function applyTheme(t) {
   document.documentElement.setAttribute('data-theme', t);
-  if (E.themeLabel)  E.themeLabel.textContent  = t === 'dark' ? 'Light' : 'Dark';
-  if (E.iconMoon)    E.iconMoon.style.display   = t === 'dark' ? 'block' : 'none';
-  if (E.iconSun)     E.iconSun.style.display    = t === 'light' ? 'block' : 'none';
-  localStorage.setItem(K_THEME, t);
+  if (D.themeLabel) D.themeLabel.textContent = t === 'dark' ? 'Light' : 'Dark';
+  if (D.iconMoon)   D.iconMoon.style.display  = t === 'dark'  ? 'block' : 'none';
+  if (D.iconSun)    D.iconSun.style.display   = t === 'light' ? 'block' : 'none';
+  localStorage.setItem(KEY_THEME, t);
 }
 
 function toggleTheme() {
@@ -174,493 +236,456 @@ function toggleTheme() {
   applyTheme(cur === 'dark' ? 'light' : 'dark');
 }
 
-/* ─────────────────────────────────────────
+/* ─────────────────────────────────────────────────────
    STORAGE
-───────────────────────────────────────── */
+───────────────────────────────────────────────────── */
 function loadStorage() {
-  try { S.history   = JSON.parse(localStorage.getItem(K_HIST))  || []; } catch { S.history   = []; }
-  try { S.favorites = JSON.parse(localStorage.getItem(K_FAVS))  || []; } catch { S.favorites = []; }
+  try { state.history   = JSON.parse(localStorage.getItem(KEY_HIST)) || []; } catch { state.history   = []; }
+  try { state.favorites = JSON.parse(localStorage.getItem(KEY_FAVS)) || []; } catch { state.favorites = []; }
 }
+function saveHistory()   { try { localStorage.setItem(KEY_HIST, JSON.stringify(state.history));   } catch {} }
+function saveFavorites() { try { localStorage.setItem(KEY_FAVS, JSON.stringify(state.favorites)); } catch {} }
 
-function saveHistory()   { try { localStorage.setItem(K_HIST, JSON.stringify(S.history));   } catch {} }
-function saveFavorites() { try { localStorage.setItem(K_FAVS, JSON.stringify(S.favorites)); } catch {} }
-
-/* ─────────────────────────────────────────
-   LANGUAGE LOADING
-───────────────────────────────────────── */
-async function loadLanguages() {
-  try {
-    const res = await fetch(LT_LANGS, {
-      signal: AbortSignal.timeout(4000)
-    });
-
-    if (!res.ok) throw new Error();
-
-    const data = await res.json();
-
-    S.langs = Array.isArray(data) && data.length > 5
-      ? data
-      : [...LANG_LIST];
-
-  } catch {
-    S.langs = [...LANG_LIST];
-  }
-
-  // Force Telugu
-  if (!S.langs.some(lang => lang.code === 'te')) {
-    S.langs.push({
-      code: 'te',
-      name: 'Telugu'
-    });
-  }
-
-  populateSelects();
-}
-function populateSelects() {
-  // Source — keep "Auto Detect" as first option
-  while (E.sourceLang.options.length > 1) E.sourceLang.remove(1);
-  E.targetLang.innerHTML = '';
-
-  S.langs.forEach(({ code, name }) => {
-    E.sourceLang.add(new Option(name, code));
-    E.targetLang.add(new Option(name, code));
-  });
-}
-
-function setDefaultTarget() {
-  const opts = E.targetLang.options;
-  for (let i = 0; i < opts.length; i++) {
-    if (opts[i].value === 'en') { E.targetLang.selectedIndex = i; break; }
-  }
-  refreshTargetPill();
-}
-
-function langName(code) {
-  if (!code || code === 'auto') return 'Auto';
-  const found = S.langs.find(l => l.code === code);
-  return found ? found.name : code.toUpperCase();
-}
-
-function refreshTargetPill() {
-  const sel = E.targetLang.selectedOptions[0];
-  if (sel && E.targetPill) E.targetPill.textContent = sel.text;
-}
-
-/* ─────────────────────────────────────────
-   EVENT BINDING
-───────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────
+   BIND EVENTS
+───────────────────────────────────────────────────── */
 function bindEvents() {
+  /* Theme */
+  D.btnTheme.addEventListener('click', toggleTheme);
 
-  // Header
-  E.btnTheme.addEventListener('click', toggleTheme);
-  E.btnHistory.addEventListener('click', openDrawer);
+  /* History drawer */
+  D.btnHistory.addEventListener('click', openDrawer);
+  D.btnCloseDrawer.addEventListener('click', closeDrawer);
+  D.overlay.addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && state.drawerOpen) closeDrawer(); });
 
-  // Language selectors
-  E.targetLang.addEventListener('change', () => {
-    refreshTargetPill();
-    syncQuickPills();
+  /* Drawer tabs */
+  D.drawerTabs.forEach(tab => {
+    tab.addEventListener('click', () => switchTab(tab.dataset.tab));
   });
-  E.sourceLang.addEventListener('change', hideDetected);
 
-  // Swap
-  E.btnSwap.addEventListener('click', swapLangs);
+  /* Clear history */
+  D.btnClrHist.addEventListener('click', clearHistory);
 
-  // Source textarea
-  E.sourceText.addEventListener('input', onSourceInput);
-  E.sourceText.addEventListener('keydown', (e) => {
-    // Enter = translate, Shift+Enter = new line
+  /* Language selectors */
+  D.tgtLang.addEventListener('change', () => {
+    updateTgtPill();
+    syncPills();
+  });
+
+  /* Swap */
+  D.btnSwap.addEventListener('click', swapLanguages);
+
+  /* Textarea */
+  D.srcText.addEventListener('input', onTextInput);
+  D.srcText.addEventListener('keydown', e => {
+    /* Enter = translate, Shift+Enter = new line */
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       doTranslate();
     }
   });
 
-  // Buttons
-  E.btnTranslate.addEventListener('click', doTranslate);
-  E.btnClear.addEventListener('click', clearAll);
-  E.btnMic.addEventListener('click', toggleMic);
-  E.btnTts.addEventListener('click', doTts);
-  E.btnFav.addEventListener('click', toggleFavCurrent);
-  E.btnCopy.addEventListener('click', doCopy);
-  E.btnDownload.addEventListener('click', doDownload);
+  /* Translate button */
+  D.btnTranslate.addEventListener('click', doTranslate);
 
-  // Quick pills
-  E.quickPills.forEach(pill => {
+  /* Clear */
+  D.btnClear.addEventListener('click', clearAll);
+
+  /* Mic */
+  D.btnMic.addEventListener('click', toggleMic);
+
+  /* Output actions */
+  D.btnTts.addEventListener('click',  doTTS);
+  D.btnFav.addEventListener('click',  toggleFavCurrent);
+  D.btnCopy.addEventListener('click', doCopy);
+  D.btnDl.addEventListener('click',   doDownload);
+
+  /* Quick pills */
+  D.quickPills.forEach(pill => {
     pill.addEventListener('click', () => {
-      E.targetLang.value = pill.dataset.code;
-      refreshTargetPill();
-      syncQuickPills();
-      if (E.sourceText.value.trim()) doTranslate();
+      D.tgtLang.value = pill.dataset.code;
+      updateTgtPill();
+      syncPills();
+      /* Auto-translate if text exists */
+      if (D.srcText.value.trim().length > 0) doTranslate();
     });
   });
-
-  // Drawer
-  E.btnCloseDrawer.addEventListener('click', closeDrawer);
-  E.drawerOverlay.addEventListener('click', closeDrawer);
-  E.btnClearHist.addEventListener('click', clearHistory);
-
-  // Drawer tabs
-  E.drawerTabs.forEach(tab => {
-    tab.addEventListener('click', () => switchTab(tab.dataset.tab));
-  });
-
-  // Escape closes drawer
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && S.drawerOpen) closeDrawer();
-  });
 }
 
-/* ─────────────────────────────────────────
-   SOURCE INPUT HANDLER
-───────────────────────────────────────── */
-function onSourceInput() {
-  updateCharCount();
-  updateStats();
-  hideDetected();
-  scheduleAutoTranslate();
-}
+/* ─────────────────────────────────────────────────────
+   TEXT INPUT HANDLER
+───────────────────────────────────────────────────── */
+function onTextInput() {
+  const text = D.srcText.value;
+  const len  = text.length;
 
-function updateCharCount() {
-  const len = E.sourceText.value.length;
-  E.charCount.textContent = `${len.toLocaleString()} / ${CHAR_MAX.toLocaleString()}`;
-  E.charCount.classList.toggle('warn', len >= CHAR_WARN && len < CHAR_MAX);
-  E.charCount.classList.toggle('over', len >= CHAR_MAX);
-}
+  /* Character counter */
+  D.charCt.textContent = `${len.toLocaleString()} / 5000`;
+  D.charCt.className = 'char-ct' + (len >= 5000 ? ' over' : len >= 4000 ? ' warn' : '');
 
-function updateStats() {
-  const txt = E.sourceText.value.trim();
-  if (!txt) { E.statsBar.style.display = 'none'; return; }
-  const words   = txt.split(/\s+/).filter(Boolean).length;
-  const readMin = Math.max(1, Math.ceil(words / 200));
-  E.statWords.textContent = `Words: ${words.toLocaleString()}`;
-  E.statRead.textContent  = `~${readMin} min read`;
-  E.statsBar.style.display = 'flex';
-}
-
-function scheduleAutoTranslate() {
-  clearTimeout(S.autoTimer);
-  const txt = E.sourceText.value.trim();
-  if (txt.length < 3) return;
-  S.autoTimer = setTimeout(() => {
-    if (!S.translating && E.sourceText.value.trim()) doTranslate();
-  }, AUTO_DELAY);
-}
-
-/* ─────────────────────────────────────────
-   LANGUAGE SWAP
-───────────────────────────────────────── */
-function swapLangs() {
-  if (E.sourceLang.value === 'auto') {
-    showToast('Cannot swap when source is Auto Detect.', 'hey'); return;
+  /* Stats bar */
+  if (text.trim()) {
+    const words   = text.trim().split(/\s+/).filter(Boolean).length;
+    const minRead = Math.max(1, Math.ceil(words / 200));
+    D.wordCt.textContent  = `Words: ${words}`;
+    D.readTime.textContent = `~${minRead} min read`;
+    D.srcStats.style.display = 'flex';
+  } else {
+    D.srcStats.style.display = 'none';
   }
-  const src = E.sourceLang.value;
-  const tgt = E.targetLang.value;
 
-  E.sourceLang.value = tgt;
-  E.targetLang.value = src;
+  /* Debounce auto-translate (1 second after user stops typing) */
+  clearTimeout(state.autoTimer);
+  if (text.trim().length >= 3) {
+    state.autoTimer = setTimeout(() => {
+      if (!state.translating && D.srcText.value.trim().length >= 3) {
+        doTranslate();
+      }
+    }, 1000);
+  }
+}
 
-  // Also swap text
-  const srcTxt = E.sourceText.value;
-  E.sourceText.value = S.translation;
-  S.translation = srcTxt;
-  showOutputText(srcTxt);
+/* ─────────────────────────────────────────────────────
+   SWAP LANGUAGES
+───────────────────────────────────────────────────── */
+function swapLanguages() {
+  const src = D.srcLang.value;
+  const tgt = D.tgtLang.value;
 
-  updateCharCount();
-  updateStats();
-  refreshTargetPill();
-  syncQuickPills();
+  if (src === 'auto') {
+    showToast('Cannot swap when source is Auto Detect', 'warn');
+    return;
+  }
+
+  /* Swap select values */
+  D.srcLang.value = tgt;
+  D.tgtLang.value = src;
+
+  /* Swap text content */
+  const oldSrc = D.srcText.value;
+  const oldTgt = state.translation;
+  D.srcText.value = oldTgt;
+  state.translation = oldSrc;
+  if (oldSrc) showResult(oldSrc);
+
+  updateTgtPill();
+  syncPills();
+  onTextInput();
   hideDetected();
 }
 
-/* ─────────────────────────────────────────
-   TRANSLATE
-───────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────
+   TRANSLATE  — Google Translate unofficial API
+   URL: https://translate.googleapis.com/translate_a/single
+   No API key needed. Works from browsers (CORS allowed).
+   Response format: [[["translatedText","sourceText",...],...],...]
+───────────────────────────────────────────────────── */
 async function doTranslate() {
-  const text = E.sourceText.value.trim();
-  if (!text) { showToast('Please enter text to translate.', 'hey'); return; }
-  if (S.translating) return;
+  const text = D.srcText.value.trim();
 
-  const srcCode = E.sourceLang.value; // 'auto' or code
-  const tgtCode = E.targetLang.value;
-  if (!tgtCode) { showToast('Please select a target language.', 'hey'); return; }
+  if (!text) {
+    showToast('Please enter some text to translate', 'warn');
+    return;
+  }
 
-  S.translating = true;
-  setLoadingUI(true);
+  /* Guard against parallel requests */
+  if (state.translating) return;
+
+  const srcCode = D.srcLang.value;  /* 'auto' or lang code */
+  const tgtCode = D.tgtLang.value;
+
+  if (!tgtCode) {
+    showToast('Please select a target language', 'warn');
+    return;
+  }
+
+  /* Same language check */
+  if (srcCode !== 'auto' && srcCode === tgtCode) {
+    showToast('Source and target languages are the same', 'warn');
+    return;
+  }
+
+  state.translating = true;
+  setLoadingState(true);
 
   try {
-    // Detect language if auto
-    let resolvedSrc = srcCode;
-    if (srcCode === 'auto') {
-      resolvedSrc = await detectLang(text);
+    const result = await googleTranslate(text, srcCode, tgtCode);
+
+    /* Save to state */
+    state.translation = result.translatedText;
+    state.srcText     = text;
+    state.srcCode     = result.detectedLang || srcCode;
+    state.tgtCode     = tgtCode;
+
+    /* Show result */
+    showResult(result.translatedText);
+    enableOutputButtons(true);
+
+    /* Show detected language badge */
+    if (srcCode === 'auto' && result.detectedLang) {
+      D.detectedLang.textContent    = getLangName(result.detectedLang);
+      D.detectedWrap.style.display  = 'flex';
     }
 
-    // Try MyMemory first, then LibreTranslate
-    let result = '';
-
-    try {
-  result = await myMemoryTranslate(text, resolvedSrc, tgtCode);
-} catch (e1) {
-  result = await libreTranslate(text, resolvedSrc, tgtCode);
-}
-
-    // Success
-    S.translation = result;
-    S.srcText     = text;
-    S.srcLang     = resolvedSrc;
-    S.tgtLang     = tgtCode;
-
-    showOutputText(result);
-    enableOutputBtns(true);
-
-    if (srcCode === 'auto' && resolvedSrc !== 'auto') {
-      showDetected(resolvedSrc);
-    }
-
-    // Save to history
+    /* Save to history */
     const entry = {
-      id:        genId(),
-      srcText:   text,
-      tgtText:   result,
-      srcCode:   resolvedSrc,
-      tgtCode:   tgtCode,
-      srcName:   langName(resolvedSrc),
-      tgtName:   langName(tgtCode),
-      ts:        Date.now(),
+      id:      Date.now() + Math.random().toString(36).slice(2),
+      srcText: text,
+      tgtText: result.translatedText,
+      srcCode: state.srcCode,
+      tgtCode: tgtCode,
+      srcName: getLangName(state.srcCode),
+      tgtName: getLangName(tgtCode),
+      ts:      Date.now(),
     };
-    S.history.unshift(entry);
-    if (S.history.length > HIST_MAX) S.history.length = HIST_MAX;
+    state.history.unshift(entry);
+    if (state.history.length > 50) state.history.length = 50;
     saveHistory();
     renderHistory();
-
-    // Sync fav button
-    syncFavBtn();
+    syncFavButton();
 
   } catch (err) {
-    console.error('[VOXA] Translation error:', err);
-    let msg = 'Translation failed. Please try again.';
-    if (err.name === 'TimeoutError' || err.name === 'AbortError') msg = 'Request timed out.';
-    else if (err.message?.includes('fetch')) msg = 'Network error. Check your connection.';
-    else if (err.message) msg = err.message;
-    showToast(msg, 'bad');
-    showOutputPlaceholder();
+    console.error('[VOXA] Translation failed:', err);
+
+    let msg = 'Translation failed. Check your internet connection.';
+    if (err.message?.includes('NetworkError') || err.message?.includes('Failed to fetch')) {
+      msg = 'No internet connection. Please check your network.';
+    } else if (err.message) {
+      msg = err.message;
+    }
+    showToast(msg, 'err');
+    showPlaceholder();
 
   } finally {
-    S.translating = false;
-    setLoadingUI(false);
+    state.translating = false;
+    setLoadingState(false);
   }
 }
 
-/* ─────────────────────────────────────────
-   API CALLS
-───────────────────────────────────────── */
-async function myMemoryTranslate(text, src, tgt) {
-  const srcCode = src === 'auto' ? 'en' : src;
-  const url = `${MYMEMORY_URL}?q=${encodeURIComponent(text)}&langpair=${encodeURIComponent(srcCode + '|' + tgt)}`;
-  const res  = await fetch(url, { signal: AbortSignal.timeout(12000) });
-  if (!res.ok) throw new Error(`MyMemory HTTP ${res.status}`);
+/* ─────────────────────────────────────────────────────
+   GOOGLE TRANSLATE API CALL
+   Uses the unofficial "gtx" client endpoint.
+   dt=t  → translated text
+   dt=ld → detected language
+───────────────────────────────────────────────────── */
+async function googleTranslate(text, srcLang, tgtLang) {
+  /* Google uses 'zh-CN' and 'zh-TW' — pass through as-is */
+  const sl = srcLang === 'auto' ? 'auto' : srcLang;
+  const tl = tgtLang;
 
-  const data = await res.json();
-  if (data.responseStatus === 429) throw new Error('MyMemory rate limit reached.');
-  if (!data.responseData?.translatedText) throw new Error('Empty response from MyMemory.');
+  const url = new URL('https://translate.googleapis.com/translate_a/single');
+  url.searchParams.set('client', 'gtx');
+  url.searchParams.set('sl', sl);
+  url.searchParams.set('tl', tl);
+  url.searchParams.set('dt', 't');   /* translated text */
+  url.searchParams.set('dt', 'ld');  /* detected language */
+  url.searchParams.set('q', text);
 
-  const t = data.responseData.translatedText;
+  /* Build URL manually to allow multiple 'dt' params */
+  const apiUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(sl)}&tl=${encodeURIComponent(tl)}&dt=t&dt=ld&q=${encodeURIComponent(text)}`;
 
-if (
-  !t ||
-  t.toUpperCase().includes('PLEASE SELECT') ||
-  (src !== tgt && t.trim().toLowerCase() === text.trim().toLowerCase())
-) {
-  throw new Error('Translation unavailable from MyMemory.');
-}
-
-return t;
-}
-
-async function libreTranslate(text, src, tgt) {
-  const res = await fetch(LT_TRANSLATE, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ q: text, source: src === 'auto' ? 'auto' : src, target: tgt, format: 'text' }),
+  const res = await fetch(apiUrl, {
+    method: 'GET',
     signal: AbortSignal.timeout(15000),
   });
+
   if (!res.ok) {
-    const e = await res.json().catch(() => ({}));
-    throw new Error(e.error || `LibreTranslate HTTP ${res.status}`);
+    throw new Error(`Translation service error (HTTP ${res.status}). Please try again.`);
   }
+
   const data = await res.json();
-  if (!data.translatedText) throw new Error('Empty response from LibreTranslate.');
-  return data.translatedText;
+
+  /*
+   * Response structure:
+   * data[0] = array of translation chunks: [[translatedChunk, originalChunk, ...], ...]
+   * data[2] = detected language code (when sl=auto)
+   */
+  if (!data || !Array.isArray(data) || !data[0]) {
+    throw new Error('Unexpected response from translation service.');
+  }
+
+  /* Join all translated chunks */
+  const translatedText = data[0]
+    .filter(chunk => Array.isArray(chunk) && chunk[0])
+    .map(chunk => chunk[0])
+    .join('');
+
+  if (!translatedText.trim()) {
+    throw new Error('Translation returned empty. Try different text.');
+  }
+
+  /* Detected language is at data[2] when sl=auto */
+  const detectedLang = (srcLang === 'auto' && data[2]) ? data[2] : null;
+
+  return { translatedText, detectedLang };
 }
 
-async function detectLang(text) {
-  try {
-    const res = await fetch(LT_DETECT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ q: text }),
-      signal: AbortSignal.timeout(6000),
-    });
-    if (!res.ok) return 'auto';
-    const data = await res.json();
-    if (Array.isArray(data) && data[0]?.language) return data[0].language;
-  } catch {}
-  return 'auto';
-}
+/* ─────────────────────────────────────────────────────
+   OUTPUT STATE HELPERS
+───────────────────────────────────────────────────── */
+function setLoadingState(loading) {
+  D.btnTranslate.disabled = loading;
 
-/* ─────────────────────────────────────────
-   OUTPUT UI HELPERS
-───────────────────────────────────────── */
-function setLoadingUI(loading) {
-  E.btnTranslate.disabled = loading;
-
-  if (E.tbText)    E.tbText.style.display    = loading ? 'none'  : 'inline';
-  if (E.tbSpinner) E.tbSpinner.style.display = loading ? 'block' : 'none';
-  if (E.tbArrow)   E.tbArrow.style.display   = loading ? 'none'  : 'block';
+  if (D.tbLabel) D.tbLabel.style.display = loading ? 'none'   : 'inline';
+  if (D.tbSpin)  D.tbSpin.style.display  = loading ? 'block'  : 'none';
+  if (D.tbArrow) D.tbArrow.style.display = loading ? 'none'   : 'block';
 
   if (loading) {
-    E.outputPlaceholder.style.display = 'none';
-    E.outputText.style.display        = 'none';
-    E.outputSkeleton.style.display    = 'flex';
+    D.outPlaceholder.style.display = 'none';
+    D.outResult.style.display      = 'none';
+    D.outSkeleton.style.display    = 'flex';
+    enableOutputButtons(false);
   } else {
-    E.outputSkeleton.style.display    = 'none';
+    D.outSkeleton.style.display = 'none';
   }
 }
 
-function showOutputText(text) {
-  E.outputPlaceholder.style.display = 'none';
-  E.outputSkeleton.style.display    = 'none';
-  E.outputText.style.display        = 'block';
-  E.outputText.textContent          = text; // textContent = safe, no XSS
+function showResult(text) {
+  D.outPlaceholder.style.display = 'none';
+  D.outSkeleton.style.display    = 'none';
+  D.outResult.style.display      = 'block';
+  D.outResult.textContent        = text; /* textContent = XSS safe */
 }
 
-function showOutputPlaceholder() {
-  E.outputPlaceholder.style.display = 'flex';
-  E.outputSkeleton.style.display    = 'none';
-  E.outputText.style.display        = 'none';
+function showPlaceholder() {
+  D.outPlaceholder.style.display = 'flex';
+  D.outSkeleton.style.display    = 'none';
+  D.outResult.style.display      = 'none';
 }
 
-function enableOutputBtns(on) {
-  E.btnTts.disabled      = !on;
-  E.btnFav.disabled      = !on;
-  E.btnCopy.disabled     = !on;
-  E.btnDownload.disabled = !on;
-}
-
-function showDetected(code) {
-  E.detectedName.textContent    = langName(code);
-  E.detectedBadge.style.display = 'flex';
+function enableOutputButtons(on) {
+  D.btnTts.disabled  = !on;
+  D.btnFav.disabled  = !on;
+  D.btnCopy.disabled = !on;
+  D.btnDl.disabled   = !on;
 }
 
 function hideDetected() {
-  E.detectedBadge.style.display = 'none';
+  D.detectedWrap.style.display = 'none';
 }
 
-function syncQuickPills() {
-  const tgt = E.targetLang.value;
-  E.quickPills.forEach(p => p.classList.toggle('active', p.dataset.code === tgt));
-}
-
-/* ─────────────────────────────────────────
-   CLEAR
-───────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────
+   CLEAR ALL
+───────────────────────────────────────────────────── */
 function clearAll() {
-  E.sourceText.value = '';
-  updateCharCount();
-  E.statsBar.style.display = 'none';
+  D.srcText.value          = '';
+  D.charCt.textContent     = '0 / 5000';
+  D.charCt.className       = 'char-ct';
+  D.srcStats.style.display = 'none';
+  state.translation        = '';
+  state.srcText            = '';
+  clearTimeout(state.autoTimer);
   hideDetected();
-  showOutputPlaceholder();
-  enableOutputBtns(false);
-  S.translation = '';
-  S.srcText     = '';
-  clearTimeout(S.autoTimer);
-  E.btnFav.classList.remove('fav-on');
-  E.sourceText.focus();
+  showPlaceholder();
+  enableOutputButtons(false);
+  D.btnFav.classList.remove('fav-on');
+  D.srcText.focus();
 }
 
-/* ─────────────────────────────────────────
-   SPEECH TO TEXT
-───────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────
+   SPEECH TO TEXT (Microphone)
+───────────────────────────────────────────────────── */
 function toggleMic() {
   if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-    showToast('Speech recognition not supported in this browser.', 'bad'); return;
+    showToast('Voice input not supported in this browser. Try Chrome.', 'err');
+    return;
   }
-  S.micActive ? stopMic() : startMic();
+  state.micActive ? stopMic() : startMic();
 }
 
 function startMic() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const rec = new SR();
-  const rawCode = E.sourceLang.value !== 'auto' ? E.sourceLang.value : 'en';
-  rec.lang = bcp47(rawCode);
-  rec.continuous = false;
+
+  /* Use correct BCP-47 tag for the selected source language */
+  const rawCode = D.srcLang.value !== 'auto' ? D.srcLang.value : 'en';
+  rec.lang = toBCP47(rawCode);
+
+  rec.continuous     = false;
   rec.interimResults = false;
 
   rec.onstart = () => {
-    S.micActive = true;
-    E.btnMic.classList.add('mic-on');
-    showToast(`Listening (${rec.lang})…`, 'info');
+    state.micActive = true;
+    D.btnMic.classList.add('mic-on');
+    showToast(`Listening in ${rec.lang}…`, 'info');
   };
 
-  rec.onresult = (ev) => {
-    const t = ev.results[0][0].transcript;
-    E.sourceText.value = (E.sourceText.value ? E.sourceText.value + ' ' : '') + t;
-    updateCharCount();
-    updateStats();
+  rec.onresult = ev => {
+    const transcript = ev.results[0][0].transcript;
+    D.srcText.value  = D.srcText.value
+      ? D.srcText.value + ' ' + transcript
+      : transcript;
+    onTextInput();
     doTranslate();
   };
 
-  rec.onerror = (ev) => {
-    const msgs = {
-      'no-speech':'No speech detected.','audio-capture':'Mic unavailable.',
-      'not-allowed':'Mic permission denied.','network':'Network error.',
+  rec.onerror = ev => {
+const msgs = {
+      'no-speech':     'No speech detected. Please try again.',
+      'audio-capture': 'Microphone not found.',
+      'not-allowed':   'Microphone permission denied.',
+      'network':       'Network error during voice input.',
     };
-    showToast(msgs[ev.error] || 'Voice error.', 'bad');
+    showToast(msgs[ev.error] || 'Voice input error.', 'err');
     stopMic();
   };
 
   rec.onend = stopMic;
-  S.recognition = rec;
+  state.recognition = rec;
   rec.start();
 }
 
 function stopMic() {
-  S.micActive = false;
-  E.btnMic.classList.remove('mic-on');
-  try { S.recognition?.stop(); } catch {}
-  S.recognition = null;
+  state.micActive = false;
+  D.btnMic.classList.remove('mic-on');
+  try { state.recognition?.stop(); } catch {}
+  state.recognition = null;
 }
 
-/* ─────────────────────────────────────────
+/* ─────────────────────────────────────────────────────
    TEXT TO SPEECH
-───────────────────────────────────────── */
-function doTts() {
+───────────────────────────────────────────────────── */
+function doTTS() {
   if (!('speechSynthesis' in window)) {
-    showToast('TTS not supported in this browser.', 'bad'); return;
+    showToast('Text-to-speech not supported in this browser.', 'err');
+    return;
   }
-  if (!S.translation) return;
+  if (!state.translation) return;
+
   window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(S.translation);
-  u.lang  = bcp47(E.targetLang.value || 'en');
-  u.rate  = 0.95;
-  u.onstart = () => { E.btnTts.style.color = 'var(--mint)'; E.btnTts.style.borderColor = 'var(--mint)'; };
-  u.onend = u.onerror = () => { E.btnTts.style.color = ''; E.btnTts.style.borderColor = ''; };
+
+  const u   = new SpeechSynthesisUtterance(state.translation);
+  u.lang    = toBCP47(D.tgtLang.value || 'en');
+  u.rate    = 0.95;
+  u.pitch   = 1.0;
+
+  u.onstart = () => {
+    D.btnTts.style.color       = 'var(--mint)';
+    D.btnTts.style.borderColor = 'var(--mint)';
+  };
+  u.onend = u.onerror = () => {
+    D.btnTts.style.color       = '';
+    D.btnTts.style.borderColor = '';
+  };
+
   window.speechSynthesis.speak(u);
 }
-/* ─────────────────────────────────────────
+
+/* ─────────────────────────────────────────────────────
    COPY
-───────────────────────────────────────── */
+───────────────────────────────────────────────────── */
 async function doCopy() {
-  if (!S.translation) return;
+  if (!state.translation) return;
   try {
-    await navigator.clipboard.writeText(S.translation);
-    showToast('Copied!', 'ok');
-    flash(E.btnCopy, 'var(--ok)');
+    await navigator.clipboard.writeText(state.translation);
+    showToast('Copied to clipboard!', 'ok');
+    flashBtn(D.btnCopy, 'var(--ok)');
   } catch {
-    // Older browser fallback
-    const ta = Object.assign(document.createElement('textarea'), {
-      value: S.translation,
-      style: 'position:fixed;opacity:0',
-    });
+    /* Fallback for older browsers */
+    const ta = document.createElement('textarea');
+    ta.value = state.translation;
+    ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
     document.body.appendChild(ta);
     ta.select();
     document.execCommand('copy');
@@ -669,23 +694,26 @@ async function doCopy() {
   }
 }
 
-/* ─────────────────────────────────────────
+/* ─────────────────────────────────────────────────────
    DOWNLOAD
-───────────────────────────────────────── */
+───────────────────────────────────────────────────── */
 function doDownload() {
-  if (!S.translation) return;
+  if (!state.translation) return;
   const content = [
     'VOXA — AI Powered Language Translator',
     `Date: ${new Date().toLocaleString()}`,
-    `From: ${langName(S.srcLang)}  →  To: ${langName(S.tgtLang)}`,
-    '', '── Original ──', S.srcText,
-    '', '── Translation ──', S.translation,
+    `From: ${getLangName(state.srcCode)}  →  To: ${getLangName(state.tgtCode)}`,
+    '',
+    '── Original ──',
+    state.srcText,
+    '',
+    '── Translation ──',
+    state.translation,
   ].join('\n');
 
-  const a = Object.assign(document.createElement('a'), {
-    href:     URL.createObjectURL(new Blob([content], { type: 'text/plain;charset=utf-8' })),
-    download: `voxa_${langName(S.tgtLang).toLowerCase()}_${Date.now()}.txt`,
-  });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(new Blob([content], { type: 'text/plain;charset=utf-8' }));
+  a.download = `voxa_${getLangName(state.tgtCode).replace(/\s+/g,'_').toLowerCase()}_${Date.now()}.txt`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -693,224 +721,229 @@ function doDownload() {
   showToast('Downloaded!', 'ok');
 }
 
-/* ─────────────────────────────────────────
+/* ─────────────────────────────────────────────────────
    FAVORITES
-───────────────────────────────────────── */
+───────────────────────────────────────────────────── */
 function toggleFavCurrent() {
-  if (!S.translation) return;
-  const id = makeEntryId(S.srcLang, S.tgtLang, S.srcText);
-  const idx = S.favorites.findIndex(f => f.id === id);
+  if (!state.translation) return;
+
+  const id  = `${state.srcCode}|${state.tgtCode}|${state.srcText.slice(0, 40)}`;
+  const idx = state.favorites.findIndex(f => f.favId === id);
 
   if (idx > -1) {
-    S.favorites.splice(idx, 1);
-    E.btnFav.classList.remove('fav-on');
+    state.favorites.splice(idx, 1);
+    D.btnFav.classList.remove('fav-on');
     showToast('Removed from favorites.', 'info');
   } else {
-    if (S.favorites.length >= FAV_MAX) S.favorites.pop();
-    S.favorites.unshift({
-      id, srcText: S.srcText, tgtText: S.translation,
-      srcCode: S.srcLang, tgtCode: S.tgtLang,
-      srcName: langName(S.srcLang), tgtName: langName(S.tgtLang),
-      ts: Date.now(),
+    if (state.favorites.length >= 100) state.favorites.pop();
+    state.favorites.unshift({
+      favId:   id,
+      id:      Date.now() + Math.random().toString(36).slice(2),
+      srcText: state.srcText,
+      tgtText: state.translation,
+      srcCode: state.srcCode,
+      tgtCode: state.tgtCode,
+      srcName: getLangName(state.srcCode),
+      tgtName: getLangName(state.tgtCode),
+      ts:      Date.now(),
     });
-    E.btnFav.classList.add('fav-on');
+    D.btnFav.classList.add('fav-on');
     showToast('Saved to favorites! ⭐', 'ok');
   }
   saveFavorites();
   renderFavorites();
+  renderHistory(); /* re-render to sync star icons */
 }
 
-function syncFavBtn() {
-  const id  = makeEntryId(S.srcLang, S.tgtLang, S.srcText);
-  const isFav = S.favorites.some(f => f.id === id);
-  E.btnFav.classList.toggle('fav-on', isFav);
+function syncFavButton() {
+  const id    = `${state.srcCode}|${state.tgtCode}|${state.srcText.slice(0, 40)}`;
+  const isFav = state.favorites.some(f => f.favId === id);
+  D.btnFav.classList.toggle('fav-on', isFav);
 }
 
-function toggleFavById(entry) {
-  const idx = S.favorites.findIndex(f => f.id === entry.id);
+function toggleFavFromList(entry) {
+  const id  = entry.favId || `${entry.srcCode}|${entry.tgtCode}|${entry.srcText.slice(0, 40)}`;
+  const idx = state.favorites.findIndex(f => f.favId === id);
   if (idx > -1) {
-    S.favorites.splice(idx, 1);
+    state.favorites.splice(idx, 1);
     showToast('Removed from favorites.', 'info');
   } else {
-    S.favorites.unshift({ ...entry });
+    state.favorites.unshift({ ...entry, favId: id });
     showToast('Saved! ⭐', 'ok');
   }
   saveFavorites();
-  renderHistory();
   renderFavorites();
-  syncFavBtn();
+  renderHistory();
+  syncFavButton();
 }
 
-/* ─────────────────────────────────────────
-   HISTORY RENDERING
-───────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────
+   HISTORY & FAVORITES RENDERING
+───────────────────────────────────────────────────── */
 function renderHistory() {
-  E.historyList.innerHTML = '';
-  if (!S.history.length) {
-    E.historyEmpty.style.display  = 'flex';
+  D.histList.innerHTML = '';
+  if (!state.history.length) {
+    D.histEmpty.style.display = 'block';
     return;
   }
-  E.historyEmpty.style.display = 'none';
-  S.history.forEach(entry => E.historyList.appendChild(buildItem(entry)));
+  D.histEmpty.style.display = 'none';
+  state.history.forEach(entry => {
+    D.histList.appendChild(buildEntry(entry));
+  });
 }
 
 function renderFavorites() {
-  E.favoritesList.innerHTML = '';
-  if (!S.favorites.length) {
-    E.favoritesEmpty.style.display = 'flex';
+  D.favList.innerHTML = '';
+  if (!state.favorites.length) {
+    D.favEmpty.style.display = 'block';
     return;
   }
-  E.favoritesEmpty.style.display = 'none';
-  S.favorites.forEach(entry => E.favoritesList.appendChild(buildItem(entry)));
+  D.favEmpty.style.display = 'none';
+  state.favorites.forEach(entry => {
+    D.favList.appendChild(buildEntry(entry));
+  });
 }
 
-function buildItem(entry) {
-  const isFav  = S.favorites.some(f => f.id === entry.id);
-  const div    = document.createElement('div');
-  div.className = 'list-item';
-  div.setAttribute('tabindex', '0');
-  div.setAttribute('role', 'button');
-  div.setAttribute('aria-label', `Restore: ${entry.srcText.slice(0, 40)}`);
+function buildEntry(entry) {
+  const isFav = state.favorites.some(f =>
+    f.favId === (entry.favId || `${entry.srcCode}|${entry.tgtCode}|${entry.srcText.slice(0,40)}`)
+  );
+
+  const div = document.createElement('div');
+  div.className = 'entry-card';
 
   div.innerHTML = `
-    <div class="list-item-head">
-      <div class="list-item-langs">
-        <span>${esc(entry.srcName)}</span>
-        <span class="arr">→</span>
-        <span>${esc(entry.tgtName)}</span>
-      </div>
-      <button class="star-btn ${isFav ? 'on' : ''}" title="${isFav ? 'Remove favorite' : 'Add favorite'}">
+    <div class="ec-head">
+      <span class="ec-langs">${esc(entry.srcName)} → ${esc(entry.tgtName)}</span>
+      <button class="star-btn ${isFav ? 'starred' : ''}" title="${isFav ? 'Remove favorite' : 'Add favorite'}">
         ${isFav ? '⭐' : '☆'}
       </button>
     </div>
-    <div class="list-item-src">${esc(clip(entry.srcText, 80))}</div>
-    <div class="list-item-tgt">${esc(clip(entry.tgtText, 80))}</div>
-    <div class="list-item-time">${timeAgo(entry.ts)}</div>
+    <p class="ec-src">${esc(clip(entry.srcText, 80))}</p>
+    <p class="ec-tgt">${esc(clip(entry.tgtText, 80))}</p>
+    <p class="ec-time">${timeAgo(entry.ts)}</p>
   `;
 
-  // Click item = restore
-  div.addEventListener('click', (e) => {
+  /* Click card body = restore */
+  div.addEventListener('click', e => {
     if (e.target.closest('.star-btn')) return;
     restoreEntry(entry);
   });
-  div.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); restoreEntry(entry); }
-  });
 
-  // Star button
-  div.querySelector('.star-btn').addEventListener('click', (e) => {
+  /* Star button */
+  div.querySelector('.star-btn').addEventListener('click', e => {
     e.stopPropagation();
-    toggleFavById(entry);
+    toggleFavFromList(entry);
   });
 
   return div;
 }
 
 function restoreEntry(entry) {
-  E.sourceText.value = entry.srcText;
-  if (entry.srcCode && entry.srcCode !== 'auto') E.sourceLang.value = entry.srcCode;
-  else E.sourceLang.value = 'auto';
-  E.targetLang.value = entry.tgtCode;
+  /* Restore source language */
+  D.srcLang.value = entry.srcCode || 'auto';
+  D.tgtLang.value = entry.tgtCode || 'en';
 
-  refreshTargetPill();
-  syncQuickPills();
-  updateCharCount();
-  updateStats();
+  /* Restore text */
+  D.srcText.value   = entry.srcText;
+  state.translation = entry.tgtText;
+  state.srcText     = entry.srcText;
+  state.srcCode     = entry.srcCode;
+  state.tgtCode     = entry.tgtCode;
 
-  S.translation = entry.tgtText;
-  S.srcText     = entry.srcText;
-  S.srcLang     = entry.srcCode;
-  S.tgtLang     = entry.tgtCode;
-
-  showOutputText(entry.tgtText);
-  enableOutputBtns(true);
-  syncFavBtn();
+  onTextInput();
+  showResult(entry.tgtText);
+  enableOutputButtons(true);
+  updateTgtPill();
+  syncPills();
+  syncFavButton();
   closeDrawer();
 }
 
 function clearHistory() {
-  S.history = [];
+  state.history = [];
   saveHistory();
   renderHistory();
   showToast('History cleared.', 'info');
 }
 
-/* ─────────────────────────────────────────
-   DRAWER
-───────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────
+   HISTORY DRAWER
+───────────────────────────────────────────────────── */
 function openDrawer() {
-  S.drawerOpen = true;
-  E.drawerOverlay.style.display = 'block';
-  E.historyDrawer.classList.add('open');
-  E.historyDrawer.setAttribute('aria-hidden', 'false');
+  state.drawerOpen = true;
+  D.overlay.style.display = 'block';
+  D.drawer.classList.add('open');
+  D.drawer.setAttribute('aria-hidden', 'false');
   document.body.style.overflow = 'hidden';
 }
 
 function closeDrawer() {
-  S.drawerOpen = false;
-  E.drawerOverlay.style.display = 'none';
-  E.historyDrawer.classList.remove('open');
-  E.historyDrawer.setAttribute('aria-hidden', 'true');
+  state.drawerOpen = false;
+  D.overlay.style.display = 'none';
+  D.drawer.classList.remove('open');
+  D.drawer.setAttribute('aria-hidden', 'true');
   document.body.style.overflow = '';
 }
 
 function switchTab(tab) {
-  S.activeTab = tab;
-  E.drawerTabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-  E.tabHistory.style.display   = tab === 'history'   ? 'flex' : 'none';
-  E.tabFavorites.style.display = tab === 'favorites' ? 'flex' : 'none';
+  state.activeTab = tab;
+  D.drawerTabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  D.tabHistory.style.display   = tab === 'history'   ? 'flex' : 'none';
+  D.tabFavorites.style.display = tab === 'favorites' ? 'flex' : 'none';
 }
 
-/* ─────────────────────────────────────────
-   TOASTS
-───────────────────────────────────────── */
-const TOAST_ICONS = { ok:'✓', bad:'✕', info:'ℹ', hey:'⚠' };
+/* ─────────────────────────────────────────────────────
+   TOAST NOTIFICATIONS
+───────────────────────────────────────────────────── */
+const ICONS = { ok: '✓', err: '✕', info: 'ℹ', warn: '⚠' };
 
-function showToast(msg, type = 'info', ms = 3400) {
-  const t = document.createElement('div');
+function showToast(msg, type = 'info', ms = 3500) {
+  const t   = document.createElement('div');
   t.className = `toast ${type}`;
-  t.innerHTML = `<span>${TOAST_ICONS[type] || 'ℹ'}</span><span>${esc(msg)}</span>`;
-  E.toastContainer.appendChild(t);
-  const timer = setTimeout(() => dismiss(t), ms);
-  t.addEventListener('click', () => { clearTimeout(timer); dismiss(t); });
+  t.innerHTML = `<span>${ICONS[type] || 'ℹ'}</span><span>${esc(msg)}</span>`;
+  D.toastBox.appendChild(t);
+
+  const timer = setTimeout(() => dismissToast(t), ms);
+  t.addEventListener('click', () => { clearTimeout(timer); dismissToast(t); });
 }
 
-function dismiss(t) {
+function dismissToast(t) {
   t.classList.add('out');
   t.addEventListener('animationend', () => t.remove(), { once: true });
 }
 
-/* ─────────────────────────────────────────
+/* ─────────────────────────────────────────────────────
    UTILITIES
-───────────────────────────────────────── */
+───────────────────────────────────────────────────── */
+/* HTML-escape to prevent XSS */
 function esc(s) {
   if (typeof s !== 'string') return '';
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-          .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+  return s
+    .replace(/&/g,  '&amp;')
+    .replace(/</g,  '&lt;')
+    .replace(/>/g,  '&gt;')
+    .replace(/"/g,  '&quot;')
+    .replace(/'/g,  '&#039;');
 }
 
+/* Truncate with ellipsis */
 function clip(s, max) {
   return s && s.length > max ? s.slice(0, max) + '…' : (s || '');
 }
 
+/* Human-readable time ago */
 function timeAgo(ts) {
   const s = Math.floor((Date.now() - ts) / 1000);
   if (s < 60)    return 'Just now';
-  if (s < 3600)  return `${Math.floor(s/60)}m ago`;
-  if (s < 86400) return `${Math.floor(s/3600)}h ago`;
-  return new Date(ts).toLocaleDateString(undefined,{month:'short',day:'numeric'});
+  if (s < 3600)  return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-function genId() {
-  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-}
-
-function makeEntryId(src, tgt, text) {
-  return `${src}_${tgt}_${text.slice(0,30)}`;
-}
-
-function flash(btn, color) {
-  btn.style.color = color;
-  btn.style.borderColor = color;
+/* Brief colour flash on a button for feedback */
+function flashBtn(btn, colour) {
+  btn.style.color       = colour;
+  btn.style.borderColor = colour;
   setTimeout(() => { btn.style.color = ''; btn.style.borderColor = ''; }, 1200);
 }
