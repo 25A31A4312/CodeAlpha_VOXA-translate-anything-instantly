@@ -1,90 +1,70 @@
 /**
  * VOXA — script.js
  * AI Powered Language Translator
+ * Clean rewrite — all buttons functional, no broken references.
  */
 
 'use strict';
 
 /* ─────────────────────────────────────────
-   CONSTANTS
+   CONFIG
 ───────────────────────────────────────── */
-const CHAR_MAX   = 5000;
-const CHAR_WARN  = 4000;
-const HIST_MAX   = 50;
-const FAV_MAX    = 100;
-const AUTO_DELAY = 1000;
+// MyMemory: free, no key needed, 5000 chars/day
+const MYMEMORY_URL = 'https://api.mymemory.translated.net/get';
 
+// LibreTranslate public mirror — fallback
+const LT_TRANSLATE = 'https://translate.fedilab.app/translate';
+const LT_DETECT    = 'https://translate.fedilab.app/detect';
+const LT_LANGS = 'https://translate.fedilab.app/languages?format=json';
+const CHAR_MAX  = 5000;
+const CHAR_WARN = 4000;
+const HIST_MAX  = 50;
+const FAV_MAX   = 100;
+const AUTO_DELAY = 1000; // ms debounce for auto-translate
+
+// localStorage keys
 const K_THEME = 'voxa_theme';
 const K_HIST  = 'voxa_hist';
 const K_FAVS  = 'voxa_favs';
 
 /* ─────────────────────────────────────────
-   LANGUAGE LIST
-───────────────────────────────────────── */
-const LANG_LIST = [
-  { code: 'en',    name: 'English' },
-  { code: 'es',    name: 'Spanish' },
-  { code: 'fr',    name: 'French' },
-  { code: 'de',    name: 'German' },
-  { code: 'it',    name: 'Italian' },
-  { code: 'pt',    name: 'Portuguese' },
-  { code: 'ru',    name: 'Russian' },
-  { code: 'ja',    name: 'Japanese' },
-  { code: 'zh-CN', name: 'Chinese (Simplified)' },
-  { code: 'ar',    name: 'Arabic' },
-  { code: 'ko',    name: 'Korean' },
-  { code: 'hi',    name: 'Hindi' },
-  { code: 'te',    name: 'Telugu' },
-  { code: 'ta',    name: 'Tamil' },
-  { code: 'kn',    name: 'Kannada' },
-  { code: 'ml',    name: 'Malayalam' },
-  { code: 'bn',    name: 'Bengali' },
-  { code: 'gu',    name: 'Gujarati' },
-  { code: 'mr',    name: 'Marathi' },
-  { code: 'pa',    name: 'Punjabi' },
-  { code: 'ur',    name: 'Urdu' },
-  { code: 'nl',    name: 'Dutch' },
-  { code: 'pl',    name: 'Polish' },
-  { code: 'tr',    name: 'Turkish' },
-  { code: 'sv',    name: 'Swedish' },
-  { code: 'da',    name: 'Danish' },
-  { code: 'fi',    name: 'Finnish' },
-  { code: 'uk',    name: 'Ukrainian' },
-  { code: 'cs',    name: 'Czech' },
-  { code: 'ro',    name: 'Romanian' },
-  { code: 'hu',    name: 'Hungarian' },
-  { code: 'el',    name: 'Greek' },
-  { code: 'he',    name: 'Hebrew' },
-  { code: 'th',    name: 'Thai' },
-  { code: 'vi',    name: 'Vietnamese' },
-  { code: 'id',    name: 'Indonesian' },
-  { code: 'ms',    name: 'Malay' },
-  { code: 'af',    name: 'Afrikaans' },
-  { code: 'no',    name: 'Norwegian' },
-  { code: 'sk',    name: 'Slovak' },
-  { code: 'sw',    name: 'Swahili' },
-  { code: 'zh-TW', name: 'Chinese (Traditional)' },
-];
-
-/* ─────────────────────────────────────────
-   SPEECH BCP-47 MAP
+   SPEECH LANGUAGE MAP  (code → BCP-47)
 ───────────────────────────────────────── */
 const SPEECH_MAP = {
   en:'en-US', hi:'hi-IN', te:'te-IN', ta:'ta-IN', kn:'kn-IN',
   ml:'ml-IN', bn:'bn-IN', gu:'gu-IN', mr:'mr-IN', pa:'pa-IN',
   ur:'ur-PK', fr:'fr-FR', de:'de-DE', es:'es-ES', it:'it-IT',
-  pt:'pt-BR', ru:'ru-RU', ja:'ja-JP', ko:'ko-KR', ar:'ar-SA',
-  nl:'nl-NL', pl:'pl-PL', tr:'tr-TR', sv:'sv-SE', da:'da-DK',
-  fi:'fi-FI', vi:'vi-VN', id:'id-ID', uk:'uk-UA', cs:'cs-CZ',
-  ro:'ro-RO', hu:'hu-HU', el:'el-GR', he:'he-IL', th:'th-TH',
-  'zh-CN':'zh-CN', 'zh-TW':'zh-TW',
+  pt:'pt-BR', ru:'ru-RU', ja:'ja-JP', zh:'zh-CN', ko:'ko-KR',
+  ar:'ar-SA', nl:'nl-NL', pl:'pl-PL', tr:'tr-TR', sv:'sv-SE',
+  da:'da-DK', fi:'fi-FI', vi:'vi-VN', id:'id-ID', uk:'uk-UA',
+  cs:'cs-CZ', ro:'ro-RO', hu:'hu-HU', el:'el-GR', he:'he-IL',
+  th:'th-TH',
 };
-const toBCP47 = code => SPEECH_MAP[code] || code;
+const bcp47 = code => SPEECH_MAP[code] || `${code}-${code.toUpperCase()}`;
+
+/* ─────────────────────────────────────────
+   BUILT-IN LANGUAGE LIST (fallback)
+───────────────────────────────────────── */
+const LANG_LIST = [
+  {code:'en',name:'English'},{code:'es',name:'Spanish'},{code:'fr',name:'French'},
+  {code:'de',name:'German'},{code:'it',name:'Italian'},{code:'pt',name:'Portuguese'},
+  {code:'ru',name:'Russian'},{code:'ja',name:'Japanese'},{code:'zh',name:'Chinese'},
+  {code:'ar',name:'Arabic'},{code:'ko',name:'Korean'},{code:'nl',name:'Dutch'},
+  {code:'pl',name:'Polish'},{code:'tr',name:'Turkish'},{code:'sv',name:'Swedish'},
+  {code:'da',name:'Danish'},{code:'fi',name:'Finnish'},{code:'hi',name:'Hindi'},
+  {code:'te',name:'Telugu'},{code:'ta',name:'Tamil'},{code:'kn',name:'Kannada'},
+  {code:'ml',name:'Malayalam'},{code:'bn',name:'Bengali'},{code:'gu',name:'Gujarati'},
+  {code:'mr',name:'Marathi'},{code:'pa',name:'Punjabi'},{code:'ur',name:'Urdu'},
+  {code:'vi',name:'Vietnamese'},{code:'id',name:'Indonesian'},{code:'uk',name:'Ukrainian'},
+  {code:'cs',name:'Czech'},{code:'ro',name:'Romanian'},{code:'hu',name:'Hungarian'},
+  {code:'el',name:'Greek'},{code:'he',name:'Hebrew'},{code:'th',name:'Thai'},
+];
 
 /* ─────────────────────────────────────────
    STATE
 ───────────────────────────────────────── */
 const S = {
+  langs:       [],
   translating: false,
   micActive:   false,
   recognition: null,
@@ -100,133 +80,79 @@ const S = {
 };
 
 /* ─────────────────────────────────────────
-   DOM CACHE
-   ⚠️  IDs must exactly match your index.html
+   ELEMENT GETTERS  (fail-safe)
 ───────────────────────────────────────── */
-let E = {};
+const el = id => document.getElementById(id);
 
+// Cache all needed elements once DOM is ready
+let E = {};
 function cacheElements() {
   E = {
-    /* Header */
-    btnHistory:   document.getElementById('btn-history'),
-    btnTheme:     document.getElementById('btn-theme'),
-    themeLabel:   document.getElementById('theme-label'),
-    iconMoon:     document.getElementById('icon-moon'),
-    iconSun:      document.getElementById('icon-sun'),
-
-    /* Language selectors — matching index.html ids */
-    srcLang:      document.getElementById('src-lang'),
-    tgtLang:      document.getElementById('tgt-lang'),
-    btnSwap:      document.getElementById('btn-swap'),
-    tgtPill:      document.getElementById('tgt-pill'),
-
-    /* Source panel */
-    srcText:      document.getElementById('src-text'),
-    charCt:       document.getElementById('char-ct'),
-    detectedWrap: document.getElementById('detected-wrap'),
-    detectedLang: document.getElementById('detected-lang'),
-    srcStats:     document.getElementById('src-stats'),
-    wordCt:       document.getElementById('word-ct'),
-    readTime:     document.getElementById('read-time'),
-    btnMic:       document.getElementById('btn-mic'),
-    btnClear:     document.getElementById('btn-clear'),
-    btnTranslate: document.getElementById('btn-translate'),
-    tbLabel:      document.getElementById('tb-label'),
-    tbSpin:       document.getElementById('tb-spin'),
-    tbArrow:      document.getElementById('tb-arrow'),
-
-    /* Target panel */
-    outPlaceholder: document.getElementById('out-placeholder'),
-    outSkeleton:    document.getElementById('out-skeleton'),
-    outResult:      document.getElementById('out-result'),
-    btnTts:         document.getElementById('btn-tts'),
-    btnFav:         document.getElementById('btn-fav'),
-    btnCopy:        document.getElementById('btn-copy'),
-    btnDl:          document.getElementById('btn-dl'),
-
-    /* Quick pills */
-    quickPills:   document.querySelectorAll('.qpill'),
-
-    /* Drawer */
-    overlay:        document.getElementById('overlay'),
-    drawer:         document.getElementById('drawer'),
-    btnCloseDrawer: document.getElementById('btn-close-drawer'),
-    drawerTabs:     document.querySelectorAll('.dtab'),
-    tabHistory:     document.getElementById('tab-history'),
-    tabFavorites:   document.getElementById('tab-favorites'),
-    histList:       document.getElementById('hist-list'),
-    histEmpty:      document.getElementById('hist-empty'),
-    favList:        document.getElementById('fav-list'),
-    favEmpty:       document.getElementById('fav-empty'),
-    btnClrHist:     document.getElementById('btn-clr-hist'),
-
-    /* Toast */
-    toastBox:     document.getElementById('toast-container'),
+    // Header
+    btnHistory:      el('btn-history'),
+    btnTheme:        el('btn-theme'),
+    themeLabel:      el('theme-label'),
+    iconMoon:        document.querySelector('.icon-moon'),
+    iconSun:         document.querySelector('.icon-sun'),
+    // Lang selectors
+    sourceLang:      el('source-lang'),
+    targetLang:      el('target-lang'),
+    btnSwap:         el('btn-swap'),
+    targetPill:      el('target-pill'),
+    // Source panel
+    sourceText:      el('source-text'),
+    charCount:       el('char-count'),
+    detectedBadge:   el('detected-badge'),
+    detectedName:    el('detected-name'),
+    statsBar:        el('stats-bar'),
+    statWords:       el('stat-words'),
+    statRead:        el('stat-read'),
+    btnMic:          el('btn-mic'),
+    btnClear:        el('btn-clear'),
+    btnTranslate:    el('btn-translate'),
+    tbText:          document.querySelector('.tb-text'),
+    tbSpinner:       document.querySelector('.tb-spinner'),
+    tbArrow:         document.querySelector('.tb-arrow'),
+    // Target panel
+    outputPlaceholder: el('output-placeholder'),
+    outputSkeleton:  el('output-skeleton'),
+    outputText:      el('output-text'),
+    btnTts:          el('btn-tts'),
+    btnFav:          el('btn-fav'),
+    btnCopy:         el('btn-copy'),
+    btnDownload:     el('btn-download'),
+    // Quick pills
+    quickPills:      document.querySelectorAll('.qpill'),
+    // Drawer
+    drawerOverlay:   el('drawer-overlay'),
+    historyDrawer:   el('history-drawer'),
+    btnCloseDrawer:  el('btn-close-drawer'),
+    drawerTabs:      document.querySelectorAll('.dtab'),
+    tabHistory:      el('tab-history'),
+    tabFavorites:    el('tab-favorites'),
+    historyList:     el('history-list'),
+    historyEmpty:    el('history-empty'),
+    favoritesList:   el('favorites-list'),
+    favoritesEmpty:  el('favorites-empty'),
+    btnClearHist:    el('btn-clear-history'),
+    // Toast
+    toastContainer:  el('toast-container'),
   };
-
-  /* Log any missing elements so you can spot ID mismatches immediately */
-  Object.entries(E).forEach(([key, val]) => {
-    if (!val) console.warn(`[VOXA] Missing element: "${key}"`);
-  });
 }
 
 /* ─────────────────────────────────────────
-   BOOT
+   INIT
 ───────────────────────────────────────── */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   cacheElements();
-  buildDropdowns();   // fill both <select> from LANG_LIST
   loadTheme();
   loadStorage();
   bindEvents();
+  await loadLanguages();
+  setDefaultTarget();
   renderHistory();
   renderFavorites();
-  syncPills();
-  updateTgtPill();
 });
-
-/* ─────────────────────────────────────────
-   BUILD DROPDOWNS FROM LANG_LIST
-   (Does NOT depend on any external API)
-───────────────────────────────────────── */
-function buildDropdowns() {
-  /* FROM — first option is Auto Detect, rest from LANG_LIST */
-  E.srcLang.innerHTML = '<option value="auto">Auto Detect</option>';
-  LANG_LIST.forEach(({ code, name }) => {
-    E.srcLang.appendChild(new Option(name, code));
-  });
-  E.srcLang.value = 'auto';
-
-  /* TO — all languages, default English */
-  E.tgtLang.innerHTML = '';
-  LANG_LIST.forEach(({ code, name }) => {
-    E.tgtLang.appendChild(new Option(name, code));
-  });
-  E.tgtLang.value = 'en';
-
-  updateTgtPill();
-}
-
-/* ─────────────────────────────────────────
-   HELPERS
-───────────────────────────────────────── */
-function getLangName(code) {
-  if (!code || code === 'auto') return 'Auto';
-  const found = LANG_LIST.find(l => l.code === code);
-  return found ? found.name : code.toUpperCase();
-}
-
-function updateTgtPill() {
-  if (E.tgtPill) {
-    const sel = E.tgtLang.selectedOptions[0];
-    E.tgtPill.textContent = sel ? sel.text : 'English';
-  }
-}
-
-function syncPills() {
-  const tgt = E.tgtLang.value;
-  E.quickPills.forEach(p => p.classList.toggle('active', p.dataset.code === tgt));
-}
 
 /* ─────────────────────────────────────────
    THEME
@@ -237,9 +163,9 @@ function loadTheme() {
 
 function applyTheme(t) {
   document.documentElement.setAttribute('data-theme', t);
-  if (E.themeLabel) E.themeLabel.textContent = t === 'dark' ? 'Light' : 'Dark';
-  if (E.iconMoon)   E.iconMoon.style.display  = t === 'dark'  ? 'block' : 'none';
-  if (E.iconSun)    E.iconSun.style.display   = t === 'light' ? 'block' : 'none';
+  if (E.themeLabel)  E.themeLabel.textContent  = t === 'dark' ? 'Light' : 'Dark';
+  if (E.iconMoon)    E.iconMoon.style.display   = t === 'dark' ? 'block' : 'none';
+  if (E.iconSun)     E.iconSun.style.display    = t === 'light' ? 'block' : 'none';
   localStorage.setItem(K_THEME, t);
 }
 
@@ -252,289 +178,446 @@ function toggleTheme() {
    STORAGE
 ───────────────────────────────────────── */
 function loadStorage() {
-  try { S.history   = JSON.parse(localStorage.getItem(K_HIST)) || []; } catch { S.history   = []; }
-  try { S.favorites = JSON.parse(localStorage.getItem(K_FAVS)) || []; } catch { S.favorites = []; }
+  try { S.history   = JSON.parse(localStorage.getItem(K_HIST))  || []; } catch { S.history   = []; }
+  try { S.favorites = JSON.parse(localStorage.getItem(K_FAVS))  || []; } catch { S.favorites = []; }
 }
+
 function saveHistory()   { try { localStorage.setItem(K_HIST, JSON.stringify(S.history));   } catch {} }
 function saveFavorites() { try { localStorage.setItem(K_FAVS, JSON.stringify(S.favorites)); } catch {} }
 
 /* ─────────────────────────────────────────
-   BIND EVENTS
+   LANGUAGE LOADING
+───────────────────────────────────────── */
+async function loadLanguages() {
+  try {
+    const res = await fetch(LT_LANGS, {
+      signal: AbortSignal.timeout(4000)
+    });
+
+    if (!res.ok) throw new Error();
+
+    const data = await res.json();
+
+    S.langs = Array.isArray(data) && data.length > 5
+      ? data
+      : [...LANG_LIST];
+
+  } catch {
+    S.langs = [...LANG_LIST];
+  }
+
+  // Force Telugu
+  if (!S.langs.some(lang => lang.code === 'te')) {
+    S.langs.push({
+      code: 'te',
+      name: 'Telugu'
+    });
+  }
+
+  populateSelects();
+}
+function populateSelects() {
+  // Source — keep "Auto Detect" as first option
+  while (E.sourceLang.options.length > 1) E.sourceLang.remove(1);
+  E.targetLang.innerHTML = '';
+
+  S.langs.forEach(({ code, name }) => {
+    E.sourceLang.add(new Option(name, code));
+    E.targetLang.add(new Option(name, code));
+  });
+}
+
+function setDefaultTarget() {
+  const opts = E.targetLang.options;
+  for (let i = 0; i < opts.length; i++) {
+    if (opts[i].value === 'en') { E.targetLang.selectedIndex = i; break; }
+  }
+  refreshTargetPill();
+}
+
+function langName(code) {
+  if (!code || code === 'auto') return 'Auto';
+  const found = S.langs.find(l => l.code === code);
+  return found ? found.name : code.toUpperCase();
+}
+
+function refreshTargetPill() {
+  const sel = E.targetLang.selectedOptions[0];
+  if (sel && E.targetPill) E.targetPill.textContent = sel.text;
+}
+
+/* ─────────────────────────────────────────
+   EVENT BINDING
 ───────────────────────────────────────── */
 function bindEvents() {
+
+  // Header
   E.btnTheme.addEventListener('click', toggleTheme);
   E.btnHistory.addEventListener('click', openDrawer);
-  E.btnCloseDrawer.addEventListener('click', closeDrawer);
-  E.overlay.addEventListener('click', closeDrawer);
-  E.btnClrHist.addEventListener('click', clearHistory);
 
+  // Language selectors
+  E.targetLang.addEventListener('change', () => {
+    refreshTargetPill();
+    syncQuickPills();
+  });
+  E.sourceLang.addEventListener('change', hideDetected);
+
+  // Swap
+  E.btnSwap.addEventListener('click', swapLangs);
+
+  // Source textarea
+  E.sourceText.addEventListener('input', onSourceInput);
+  E.sourceText.addEventListener('keydown', (e) => {
+    // Enter = translate, Shift+Enter = new line
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      doTranslate();
+    }
+  });
+
+  // Buttons
+  E.btnTranslate.addEventListener('click', doTranslate);
+  E.btnClear.addEventListener('click', clearAll);
+  E.btnMic.addEventListener('click', toggleMic);
+  E.btnTts.addEventListener('click', doTts);
+  E.btnFav.addEventListener('click', toggleFavCurrent);
+  E.btnCopy.addEventListener('click', doCopy);
+  E.btnDownload.addEventListener('click', doDownload);
+
+  // Quick pills
+  E.quickPills.forEach(pill => {
+    pill.addEventListener('click', () => {
+      E.targetLang.value = pill.dataset.code;
+      refreshTargetPill();
+      syncQuickPills();
+      if (E.sourceText.value.trim()) doTranslate();
+    });
+  });
+
+  // Drawer
+  E.btnCloseDrawer.addEventListener('click', closeDrawer);
+  E.drawerOverlay.addEventListener('click', closeDrawer);
+  E.btnClearHist.addEventListener('click', clearHistory);
+
+  // Drawer tabs
   E.drawerTabs.forEach(tab => {
     tab.addEventListener('click', () => switchTab(tab.dataset.tab));
   });
 
-  E.tgtLang.addEventListener('change', () => { updateTgtPill(); syncPills(); });
-  E.srcLang.addEventListener('change', hideDetected);
-  E.btnSwap.addEventListener('click', swapLanguages);
-
-  E.srcText.addEventListener('input', onTextInput);
-  E.srcText.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doTranslate(); }
-  });
-
-  E.btnTranslate.addEventListener('click', doTranslate);
-  E.btnClear.addEventListener('click', clearAll);
-  E.btnMic.addEventListener('click', toggleMic);
-  E.btnTts.addEventListener('click', doTTS);
-  E.btnFav.addEventListener('click', toggleFavCurrent);
-  E.btnCopy.addEventListener('click', doCopy);
-  E.btnDl.addEventListener('click', doDownload);
-
-  E.quickPills.forEach(pill => {
-    pill.addEventListener('click', () => {
-      E.tgtLang.value = pill.dataset.code;
-      updateTgtPill();
-      syncPills();
-      if (E.srcText.value.trim()) doTranslate();
-    });
-  });
-
-  document.addEventListener('keydown', e => {
+  // Escape closes drawer
+  document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && S.drawerOpen) closeDrawer();
   });
 }
 
 /* ─────────────────────────────────────────
-   TEXT INPUT
+   SOURCE INPUT HANDLER
 ───────────────────────────────────────── */
-function onTextInput() {
-  const text = E.srcText.value;
-  const len  = text.length;
+function onSourceInput() {
+  updateCharCount();
+  updateStats();
+  hideDetected();
+  scheduleAutoTranslate();
+}
 
-  E.charCt.textContent = `${len.toLocaleString()} / 5000`;
-  E.charCt.className = 'char-ct' + (len >= 5000 ? ' over' : len >= 4000 ? ' warn' : '');
+function updateCharCount() {
+  const len = E.sourceText.value.length;
+  E.charCount.textContent = `${len.toLocaleString()} / ${CHAR_MAX.toLocaleString()}`;
+  E.charCount.classList.toggle('warn', len >= CHAR_WARN && len < CHAR_MAX);
+  E.charCount.classList.toggle('over', len >= CHAR_MAX);
+}
 
-  if (text.trim()) {
-    const words = text.trim().split(/\s+/).filter(Boolean).length;
-    const mins  = Math.max(1, Math.ceil(words / 200));
-    E.wordCt.textContent  = `Words: ${words}`;
-    E.readTime.textContent = `~${mins} min read`;
-    E.srcStats.style.display = 'flex';
-  } else {
-    E.srcStats.style.display = 'none';
-  }
+function updateStats() {
+  const txt = E.sourceText.value.trim();
+  if (!txt) { E.statsBar.style.display = 'none'; return; }
+  const words   = txt.split(/\s+/).filter(Boolean).length;
+  const readMin = Math.max(1, Math.ceil(words / 200));
+  E.statWords.textContent = `Words: ${words.toLocaleString()}`;
+  E.statRead.textContent  = `~${readMin} min read`;
+  E.statsBar.style.display = 'flex';
+}
 
+function scheduleAutoTranslate() {
   clearTimeout(S.autoTimer);
-  if (text.trim().length >= 3) {
-    S.autoTimer = setTimeout(() => {
-      if (!S.translating && E.srcText.value.trim().length >= 3) doTranslate();
-    }, AUTO_DELAY);
-  }
+  const txt = E.sourceText.value.trim();
+  if (txt.length < 3) return;
+  S.autoTimer = setTimeout(() => {
+    if (!S.translating && E.sourceText.value.trim()) doTranslate();
+  }, AUTO_DELAY);
 }
 
 /* ─────────────────────────────────────────
-   SWAP
+   LANGUAGE SWAP
 ───────────────────────────────────────── */
-function swapLanguages() {
-  if (E.srcLang.value === 'auto') {
-    showToast('Cannot swap when source is Auto Detect', 'warn'); return;
+function swapLangs() {
+  if (E.sourceLang.value === 'auto') {
+    showToast('Cannot swap when source is Auto Detect.', 'hey'); return;
   }
-  const src = E.srcLang.value;
-  const tgt = E.tgtLang.value;
-  E.srcLang.value = tgt;
-  E.tgtLang.value = src;
+  const src = E.sourceLang.value;
+  const tgt = E.targetLang.value;
 
-  const oldSrc = E.srcText.value;
-  E.srcText.value = S.translation;
-  if (S.translation) showResult(S.translation);
-  S.translation = oldSrc;
+  E.sourceLang.value = tgt;
+  E.targetLang.value = src;
 
-  updateTgtPill();
-  syncPills();
-  onTextInput();
+  // Also swap text
+  const srcTxt = E.sourceText.value;
+  E.sourceText.value = S.translation;
+  S.translation = srcTxt;
+  showOutputText(srcTxt);
+
+  updateCharCount();
+  updateStats();
+  refreshTargetPill();
+  syncQuickPills();
   hideDetected();
 }
 
 /* ─────────────────────────────────────────
-   TRANSLATE  —  Google Translate (no key needed)
+   TRANSLATE
 ───────────────────────────────────────── */
 async function doTranslate() {
-  const text = E.srcText.value.trim();
-  if (!text) { showToast('Please enter text to translate', 'warn'); return; }
+  const text = E.sourceText.value.trim();
+  if (!text) { showToast('Please enter text to translate.', 'hey'); return; }
   if (S.translating) return;
 
-  const srcCode = E.srcLang.value;
-  const tgtCode = E.tgtLang.value;
-  if (!tgtCode) { showToast('Please select a target language', 'warn'); return; }
+  const srcCode = E.sourceLang.value; // 'auto' or code
+  const tgtCode = E.targetLang.value;
+  if (!tgtCode) { showToast('Please select a target language.', 'hey'); return; }
 
   S.translating = true;
-  setLoading(true);
+  setLoadingUI(true);
 
   try {
-    const { translatedText, detectedLang } = await googleTranslate(text, srcCode, tgtCode);
-
-    S.translation = translatedText;
-    S.srcText     = text;
-    S.srcLang     = detectedLang || srcCode;
-    S.tgtLang     = tgtCode;
-
-    showResult(translatedText);
-    enableOutputBtns(true);
-
-    if (srcCode === 'auto' && detectedLang) {
-      E.detectedLang.textContent   = getLangName(detectedLang);
-      E.detectedWrap.style.display = 'flex';
+    // Detect language if auto
+    let resolvedSrc = srcCode;
+    if (srcCode === 'auto') {
+      resolvedSrc = await detectLang(text);
     }
 
-    /* Save history */
+    // Try MyMemory first, then LibreTranslate
+    let result = '';
+
+    try {
+  result = await myMemoryTranslate(text, resolvedSrc, tgtCode);
+} catch (e1) {
+  result = await libreTranslate(text, resolvedSrc, tgtCode);
+}
+
+    // Success
+    S.translation = result;
+    S.srcText     = text;
+    S.srcLang     = resolvedSrc;
+    S.tgtLang     = tgtCode;
+
+    showOutputText(result);
+    enableOutputBtns(true);
+
+    if (srcCode === 'auto' && resolvedSrc !== 'auto') {
+      showDetected(resolvedSrc);
+    }
+
+    // Save to history
     const entry = {
-      id:      Date.now() + '-' + Math.random().toString(36).slice(2),
-      srcText: text,
-      tgtText: translatedText,
-      srcCode: S.srcLang,
-      tgtCode: tgtCode,
-      srcName: getLangName(S.srcLang),
-      tgtName: getLangName(tgtCode),
-      ts:      Date.now(),
+      id:        genId(),
+      srcText:   text,
+      tgtText:   result,
+      srcCode:   resolvedSrc,
+      tgtCode:   tgtCode,
+      srcName:   langName(resolvedSrc),
+      tgtName:   langName(tgtCode),
+      ts:        Date.now(),
     };
     S.history.unshift(entry);
     if (S.history.length > HIST_MAX) S.history.length = HIST_MAX;
     saveHistory();
     renderHistory();
-    syncFavButton();
+
+    // Sync fav button
+    syncFavBtn();
 
   } catch (err) {
-    console.error('[VOXA]', err);
-    showToast(err.message || 'Translation failed. Check your internet.', 'err');
-    showPlaceholder();
+    console.error('[VOXA] Translation error:', err);
+    let msg = 'Translation failed. Please try again.';
+    if (err.name === 'TimeoutError' || err.name === 'AbortError') msg = 'Request timed out.';
+    else if (err.message?.includes('fetch')) msg = 'Network error. Check your connection.';
+    else if (err.message) msg = err.message;
+    showToast(msg, 'bad');
+    showOutputPlaceholder();
+
   } finally {
     S.translating = false;
-    setLoading(false);
+    setLoadingUI(false);
   }
 }
 
 /* ─────────────────────────────────────────
-   GOOGLE TRANSLATE  (unofficial, free, no key)
-   Works in any browser — CORS allowed by Google
+   API CALLS
 ───────────────────────────────────────── */
-async function googleTranslate(text, sl, tl) {
-  const url =
-    `https://translate.googleapis.com/translate_a/single` +
-    `?client=gtx&sl=${encodeURIComponent(sl)}&tl=${encodeURIComponent(tl)}` +
-    `&dt=t&dt=ld&q=${encodeURIComponent(text)}`;
-
-  const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
-
-  if (!res.ok) throw new Error(`Translation service error (HTTP ${res.status})`);
+async function myMemoryTranslate(text, src, tgt) {
+  const srcCode = src === 'auto' ? 'en' : src;
+  const url = `${MYMEMORY_URL}?q=${encodeURIComponent(text)}&langpair=${encodeURIComponent(srcCode + '|' + tgt)}`;
+  const res  = await fetch(url, { signal: AbortSignal.timeout(12000) });
+  if (!res.ok) throw new Error(`MyMemory HTTP ${res.status}`);
 
   const data = await res.json();
+  if (data.responseStatus === 429) throw new Error('MyMemory rate limit reached.');
+  if (!data.responseData?.translatedText) throw new Error('Empty response from MyMemory.');
 
-  if (!data || !Array.isArray(data[0])) {
-    throw new Error('Unexpected response from translation service');
+  const t = data.responseData.translatedText;
+
+if (
+  !t ||
+  t.toUpperCase().includes('PLEASE SELECT') ||
+  (src !== tgt && t.trim().toLowerCase() === text.trim().toLowerCase())
+) {
+  throw new Error('Translation unavailable from MyMemory.');
+}
+
+return t;
+}
+
+async function libreTranslate(text, src, tgt) {
+  const res = await fetch(LT_TRANSLATE, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ q: text, source: src === 'auto' ? 'auto' : src, target: tgt, format: 'text' }),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e.error || `LibreTranslate HTTP ${res.status}`);
   }
+  const data = await res.json();
+  if (!data.translatedText) throw new Error('Empty response from LibreTranslate.');
+  return data.translatedText;
+}
 
-  /* data[0] = array of [translatedChunk, originalChunk] pairs */
-  const translatedText = data[0]
-    .filter(chunk => Array.isArray(chunk) && chunk[0])
-    .map(chunk => chunk[0])
-    .join('');
-
-  if (!translatedText.trim()) throw new Error('Empty translation returned');
-
-  /* data[2] = detected language when sl=auto */
-  const detectedLang = (sl === 'auto' && data[2]) ? data[2] : null;
-
-  return { translatedText, detectedLang };
+async function detectLang(text) {
+  try {
+    const res = await fetch(LT_DETECT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: text }),
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!res.ok) return 'auto';
+    const data = await res.json();
+    if (Array.isArray(data) && data[0]?.language) return data[0].language;
+  } catch {}
+  return 'auto';
 }
 
 /* ─────────────────────────────────────────
-   UI HELPERS
+   OUTPUT UI HELPERS
 ───────────────────────────────────────── */
-function setLoading(on) {
-  E.btnTranslate.disabled = on;
-  if (E.tbLabel) E.tbLabel.style.display = on ? 'none'  : 'inline';
-  if (E.tbSpin)  E.tbSpin.style.display  = on ? 'block' : 'none';
-  if (E.tbArrow) E.tbArrow.style.display = on ? 'none'  : 'block';
+function setLoadingUI(loading) {
+  E.btnTranslate.disabled = loading;
 
-  if (on) {
-    E.outPlaceholder.style.display = 'none';
-    E.outResult.style.display      = 'none';
-    E.outSkeleton.style.display    = 'flex';
-    enableOutputBtns(false);
+  if (E.tbText)    E.tbText.style.display    = loading ? 'none'  : 'inline';
+  if (E.tbSpinner) E.tbSpinner.style.display = loading ? 'block' : 'none';
+  if (E.tbArrow)   E.tbArrow.style.display   = loading ? 'none'  : 'block';
+
+  if (loading) {
+    E.outputPlaceholder.style.display = 'none';
+    E.outputText.style.display        = 'none';
+    E.outputSkeleton.style.display    = 'flex';
   } else {
-    E.outSkeleton.style.display = 'none';
+    E.outputSkeleton.style.display    = 'none';
   }
 }
 
-function showResult(text) {
-  E.outPlaceholder.style.display = 'none';
-  E.outSkeleton.style.display    = 'none';
-  E.outResult.style.display      = 'block';
-  E.outResult.textContent        = text;
+function showOutputText(text) {
+  E.outputPlaceholder.style.display = 'none';
+  E.outputSkeleton.style.display    = 'none';
+  E.outputText.style.display        = 'block';
+  E.outputText.textContent          = text; // textContent = safe, no XSS
 }
 
-function showPlaceholder() {
-  E.outPlaceholder.style.display = 'flex';
-  E.outSkeleton.style.display    = 'none';
-  E.outResult.style.display      = 'none';
+function showOutputPlaceholder() {
+  E.outputPlaceholder.style.display = 'flex';
+  E.outputSkeleton.style.display    = 'none';
+  E.outputText.style.display        = 'none';
 }
 
 function enableOutputBtns(on) {
-  E.btnTts.disabled  = !on;
-  E.btnFav.disabled  = !on;
-  E.btnCopy.disabled = !on;
-  E.btnDl.disabled   = !on;
+  E.btnTts.disabled      = !on;
+  E.btnFav.disabled      = !on;
+  E.btnCopy.disabled     = !on;
+  E.btnDownload.disabled = !on;
 }
 
-function hideDetected() { E.detectedWrap.style.display = 'none'; }
+function showDetected(code) {
+  E.detectedName.textContent    = langName(code);
+  E.detectedBadge.style.display = 'flex';
+}
+
+function hideDetected() {
+  E.detectedBadge.style.display = 'none';
+}
+
+function syncQuickPills() {
+  const tgt = E.targetLang.value;
+  E.quickPills.forEach(p => p.classList.toggle('active', p.dataset.code === tgt));
+}
 
 /* ─────────────────────────────────────────
    CLEAR
 ───────────────────────────────────────── */
 function clearAll() {
-  E.srcText.value          = '';
-  E.charCt.textContent     = '0 / 5000';
-  E.charCt.className       = 'char-ct';
-  E.srcStats.style.display = 'none';
+  E.sourceText.value = '';
+  updateCharCount();
+  E.statsBar.style.display = 'none';
+  hideDetected();
+  showOutputPlaceholder();
+  enableOutputBtns(false);
   S.translation = '';
   S.srcText     = '';
   clearTimeout(S.autoTimer);
-  hideDetected();
-  showPlaceholder();
-  enableOutputBtns(false);
   E.btnFav.classList.remove('fav-on');
-  E.srcText.focus();
+  E.sourceText.focus();
 }
 
 /* ─────────────────────────────────────────
-   MIC (Speech to Text)
+   SPEECH TO TEXT
 ───────────────────────────────────────── */
 function toggleMic() {
   if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-    showToast('Voice input not supported. Use Chrome.', 'err'); return;
+    showToast('Speech recognition not supported in this browser.', 'bad'); return;
   }
   S.micActive ? stopMic() : startMic();
 }
 
 function startMic() {
-  const SR  = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const rec = new SR();
-  const raw = E.srcLang.value !== 'auto' ? E.srcLang.value : 'en';
-  rec.lang            = toBCP47(raw);
-  rec.continuous      = false;
-  rec.interimResults  = false;
+  const rawCode = E.sourceLang.value !== 'auto' ? E.sourceLang.value : 'en';
+  rec.lang = bcp47(rawCode);
+  rec.continuous = false;
+  rec.interimResults = false;
 
-  rec.onstart  = () => { S.micActive = true; E.btnMic.classList.add('mic-on'); showToast(`Listening (${rec.lang})…`, 'info'); };
-  rec.onresult = ev  => {
+  rec.onstart = () => {
+    S.micActive = true;
+    E.btnMic.classList.add('mic-on');
+    showToast(`Listening (${rec.lang})…`, 'info');
+  };
+
+  rec.onresult = (ev) => {
     const t = ev.results[0][0].transcript;
-    E.srcText.value = E.srcText.value ? E.srcText.value + ' ' + t : t;
-    onTextInput();
+    E.sourceText.value = (E.sourceText.value ? E.sourceText.value + ' ' : '') + t;
+    updateCharCount();
+    updateStats();
     doTranslate();
   };
-  rec.onerror  = ev  => {
-    const m = { 'no-speech':'No speech.', 'audio-capture':'No mic.', 'not-allowed':'Mic denied.', 'network':'Network error.' };
-    showToast(m[ev.error] || 'Voice error.', 'err');
+
+  rec.onerror = (ev) => {
+    const msgs = {
+      'no-speech':'No speech detected.','audio-capture':'Mic unavailable.',
+      'not-allowed':'Mic permission denied.','network':'Network error.',
+    };
+    showToast(msgs[ev.error] || 'Voice error.', 'bad');
     stopMic();
   };
+
   rec.onend = stopMic;
   S.recognition = rec;
   rec.start();
@@ -548,21 +631,21 @@ function stopMic() {
 }
 
 /* ─────────────────────────────────────────
-   TTS (Text to Speech)
+   TEXT TO SPEECH
 ───────────────────────────────────────── */
-function doTTS() {
-  if (!('speechSynthesis' in window)) { showToast('TTS not supported.', 'err'); return; }
+function doTts() {
+  if (!('speechSynthesis' in window)) {
+    showToast('TTS not supported in this browser.', 'bad'); return;
+  }
   if (!S.translation) return;
   window.speechSynthesis.cancel();
-  const u  = new SpeechSynthesisUtterance(S.translation);
-  u.lang   = toBCP47(E.tgtLang.value || 'en');
-  u.rate   = 0.95;
-  u.onstart  = () => { E.btnTts.style.color = 'var(--mint)'; E.btnTts.style.borderColor = 'var(--mint)'; };
-  u.onend    = () => { E.btnTts.style.color = ''; E.btnTts.style.borderColor = ''; };
-  u.onerror  = () => { E.btnTts.style.color = ''; E.btnTts.style.borderColor = ''; };
+  const u = new SpeechSynthesisUtterance(S.translation);
+  u.lang  = bcp47(E.targetLang.value || 'en');
+  u.rate  = 0.95;
+  u.onstart = () => { E.btnTts.style.color = 'var(--mint)'; E.btnTts.style.borderColor = 'var(--mint)'; };
+  u.onend = u.onerror = () => { E.btnTts.style.color = ''; E.btnTts.style.borderColor = ''; };
   window.speechSynthesis.speak(u);
 }
-
 /* ─────────────────────────────────────────
    COPY
 ───────────────────────────────────────── */
@@ -571,11 +654,13 @@ async function doCopy() {
   try {
     await navigator.clipboard.writeText(S.translation);
     showToast('Copied!', 'ok');
-    flashBtn(E.btnCopy, 'var(--ok)');
+    flash(E.btnCopy, 'var(--ok)');
   } catch {
-    const ta = document.createElement('textarea');
-    ta.value = S.translation;
-    ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+    // Older browser fallback
+    const ta = Object.assign(document.createElement('textarea'), {
+      value: S.translation,
+      style: 'position:fixed;opacity:0',
+    });
     document.body.appendChild(ta);
     ta.select();
     document.execCommand('copy');
@@ -592,13 +677,15 @@ function doDownload() {
   const content = [
     'VOXA — AI Powered Language Translator',
     `Date: ${new Date().toLocaleString()}`,
-    `From: ${getLangName(S.srcLang)}  →  To: ${getLangName(S.tgtLang)}`,
+    `From: ${langName(S.srcLang)}  →  To: ${langName(S.tgtLang)}`,
     '', '── Original ──', S.srcText,
     '', '── Translation ──', S.translation,
   ].join('\n');
-  const a    = document.createElement('a');
-  a.href     = URL.createObjectURL(new Blob([content], { type: 'text/plain;charset=utf-8' }));
-  a.download = `voxa_${getLangName(S.tgtLang).replace(/\s+/g,'_').toLowerCase()}_${Date.now()}.txt`;
+
+  const a = Object.assign(document.createElement('a'), {
+    href:     URL.createObjectURL(new Blob([content], { type: 'text/plain;charset=utf-8' })),
+    download: `voxa_${langName(S.tgtLang).toLowerCase()}_${Date.now()}.txt`,
+  });
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -609,14 +696,11 @@ function doDownload() {
 /* ─────────────────────────────────────────
    FAVORITES
 ───────────────────────────────────────── */
-function makeFavId() {
-  return `${S.srcLang}|${S.tgtLang}|${S.srcText.slice(0, 40)}`;
-}
-
 function toggleFavCurrent() {
   if (!S.translation) return;
-  const id  = makeFavId();
-  const idx = S.favorites.findIndex(f => f.favId === id);
+  const id = makeEntryId(S.srcLang, S.tgtLang, S.srcText);
+  const idx = S.favorites.findIndex(f => f.id === id);
+
   if (idx > -1) {
     S.favorites.splice(idx, 1);
     E.btnFav.classList.remove('fav-on');
@@ -624,11 +708,9 @@ function toggleFavCurrent() {
   } else {
     if (S.favorites.length >= FAV_MAX) S.favorites.pop();
     S.favorites.unshift({
-      favId:   id,
-      id:      Date.now() + '-' + Math.random().toString(36).slice(2),
-      srcText: S.srcText,    tgtText: S.translation,
-      srcCode: S.srcLang,    tgtCode: S.tgtLang,
-      srcName: getLangName(S.srcLang), tgtName: getLangName(S.tgtLang),
+      id, srcText: S.srcText, tgtText: S.translation,
+      srcCode: S.srcLang, tgtCode: S.tgtLang,
+      srcName: langName(S.srcLang), tgtName: langName(S.tgtLang),
       ts: Date.now(),
     });
     E.btnFav.classList.add('fav-on');
@@ -636,55 +718,59 @@ function toggleFavCurrent() {
   }
   saveFavorites();
   renderFavorites();
-  renderHistory();
 }
 
-function syncFavButton() {
-  const id = makeFavId();
-  E.btnFav.classList.toggle('fav-on', S.favorites.some(f => f.favId === id));
+function syncFavBtn() {
+  const id  = makeEntryId(S.srcLang, S.tgtLang, S.srcText);
+  const isFav = S.favorites.some(f => f.id === id);
+  E.btnFav.classList.toggle('fav-on', isFav);
 }
 
-function toggleFavFromList(entry) {
-  const id  = entry.favId || `${entry.srcCode}|${entry.tgtCode}|${entry.srcText.slice(0,40)}`;
-  const idx = S.favorites.findIndex(f => f.favId === id);
+function toggleFavById(entry) {
+  const idx = S.favorites.findIndex(f => f.id === entry.id);
   if (idx > -1) {
     S.favorites.splice(idx, 1);
     showToast('Removed from favorites.', 'info');
   } else {
-    S.favorites.unshift({ ...entry, favId: id });
+    S.favorites.unshift({ ...entry });
     showToast('Saved! ⭐', 'ok');
   }
   saveFavorites();
-  renderFavorites();
   renderHistory();
-  syncFavButton();
+  renderFavorites();
+  syncFavBtn();
 }
 
 /* ─────────────────────────────────────────
-   HISTORY & FAVORITES RENDER
+   HISTORY RENDERING
 ───────────────────────────────────────── */
 function renderHistory() {
-  E.histList.innerHTML = '';
-  const empty = !S.history.length;
-  E.histEmpty.style.display = empty ? 'block' : 'none';
-  if (!empty) S.history.forEach(e => E.histList.appendChild(buildCard(e)));
+  E.historyList.innerHTML = '';
+  if (!S.history.length) {
+    E.historyEmpty.style.display  = 'flex';
+    return;
+  }
+  E.historyEmpty.style.display = 'none';
+  S.history.forEach(entry => E.historyList.appendChild(buildItem(entry)));
 }
 
 function renderFavorites() {
-  E.favList.innerHTML = '';
-  const empty = !S.favorites.length;
-  E.favEmpty.style.display = empty ? 'block' : 'none';
-  if (!empty) S.favorites.forEach(e => E.favList.appendChild(buildCard(e)));
+  E.favoritesList.innerHTML = '';
+  if (!S.favorites.length) {
+    E.favoritesEmpty.style.display = 'flex';
+    return;
+  }
+  E.favoritesEmpty.style.display = 'none';
+  S.favorites.forEach(entry => E.favoritesList.appendChild(buildItem(entry)));
 }
 
-function buildCard(entry) {
-  const favId = entry.favId || `${entry.srcCode}|${entry.tgtCode}|${entry.srcText.slice(0,40)}`;
-  const isFav = S.favorites.some(f => f.favId === favId);
-
-  const div = document.createElement('div');
+function buildItem(entry) {
+  const isFav  = S.favorites.some(f => f.id === entry.id);
+  const div    = document.createElement('div');
   div.className = 'list-item';
-  div.setAttribute('role', 'button');
   div.setAttribute('tabindex', '0');
+  div.setAttribute('role', 'button');
+  div.setAttribute('aria-label', `Restore: ${entry.srcText.slice(0, 40)}`);
 
   div.innerHTML = `
     <div class="list-item-head">
@@ -693,7 +779,7 @@ function buildCard(entry) {
         <span class="arr">→</span>
         <span>${esc(entry.tgtName)}</span>
       </div>
-      <button class="star-btn ${isFav ? 'on' : ''}" title="${isFav ? 'Remove' : 'Favorite'}">
+      <button class="star-btn ${isFav ? 'on' : ''}" title="${isFav ? 'Remove favorite' : 'Add favorite'}">
         ${isFav ? '⭐' : '☆'}
       </button>
     </div>
@@ -702,35 +788,43 @@ function buildCard(entry) {
     <div class="list-item-time">${timeAgo(entry.ts)}</div>
   `;
 
-  div.addEventListener('click', e => {
+  // Click item = restore
+  div.addEventListener('click', (e) => {
     if (e.target.closest('.star-btn')) return;
     restoreEntry(entry);
   });
-  div.addEventListener('keydown', e => {
+  div.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); restoreEntry(entry); }
   });
-  div.querySelector('.star-btn').addEventListener('click', e => {
+
+  // Star button
+  div.querySelector('.star-btn').addEventListener('click', (e) => {
     e.stopPropagation();
-    toggleFavFromList({ ...entry, favId });
+    toggleFavById(entry);
   });
 
   return div;
 }
 
 function restoreEntry(entry) {
-  E.srcLang.value = entry.srcCode || 'auto';
-  E.tgtLang.value = entry.tgtCode || 'en';
-  E.srcText.value = entry.srcText;
-  S.translation   = entry.tgtText;
-  S.srcText       = entry.srcText;
-  S.srcLang       = entry.srcCode;
-  S.tgtLang       = entry.tgtCode;
-  onTextInput();
-  showResult(entry.tgtText);
+  E.sourceText.value = entry.srcText;
+  if (entry.srcCode && entry.srcCode !== 'auto') E.sourceLang.value = entry.srcCode;
+  else E.sourceLang.value = 'auto';
+  E.targetLang.value = entry.tgtCode;
+
+  refreshTargetPill();
+  syncQuickPills();
+  updateCharCount();
+  updateStats();
+
+  S.translation = entry.tgtText;
+  S.srcText     = entry.srcText;
+  S.srcLang     = entry.srcCode;
+  S.tgtLang     = entry.tgtCode;
+
+  showOutputText(entry.tgtText);
   enableOutputBtns(true);
-  updateTgtPill();
-  syncPills();
-  syncFavButton();
+  syncFavBtn();
   closeDrawer();
 }
 
@@ -746,17 +840,17 @@ function clearHistory() {
 ───────────────────────────────────────── */
 function openDrawer() {
   S.drawerOpen = true;
-  E.overlay.style.display = 'block';
-  E.drawer.classList.add('open');
-  E.drawer.setAttribute('aria-hidden', 'false');
+  E.drawerOverlay.style.display = 'block';
+  E.historyDrawer.classList.add('open');
+  E.historyDrawer.setAttribute('aria-hidden', 'false');
   document.body.style.overflow = 'hidden';
 }
 
 function closeDrawer() {
   S.drawerOpen = false;
-  E.overlay.style.display = 'none';
-  E.drawer.classList.remove('open');
-  E.drawer.setAttribute('aria-hidden', 'true');
+  E.drawerOverlay.style.display = 'none';
+  E.historyDrawer.classList.remove('open');
+  E.historyDrawer.setAttribute('aria-hidden', 'true');
   document.body.style.overflow = '';
 }
 
@@ -770,18 +864,18 @@ function switchTab(tab) {
 /* ─────────────────────────────────────────
    TOASTS
 ───────────────────────────────────────── */
-const ICONS = { ok:'✓', err:'✕', info:'ℹ', warn:'⚠' };
+const TOAST_ICONS = { ok:'✓', bad:'✕', info:'ℹ', hey:'⚠' };
 
-function showToast(msg, type = 'info', ms = 3500) {
+function showToast(msg, type = 'info', ms = 3400) {
   const t = document.createElement('div');
   t.className = `toast ${type}`;
-  t.innerHTML = `<span>${ICONS[type] || 'ℹ'}</span><span>${esc(msg)}</span>`;
-  E.toastBox.appendChild(t);
-  const timer = setTimeout(() => dismissToast(t), ms);
-  t.addEventListener('click', () => { clearTimeout(timer); dismissToast(t); });
+  t.innerHTML = `<span>${TOAST_ICONS[type] || 'ℹ'}</span><span>${esc(msg)}</span>`;
+  E.toastContainer.appendChild(t);
+  const timer = setTimeout(() => dismiss(t), ms);
+  t.addEventListener('click', () => { clearTimeout(timer); dismiss(t); });
 }
 
-function dismissToast(t) {
+function dismiss(t) {
   t.classList.add('out');
   t.addEventListener('animationend', () => t.remove(), { once: true });
 }
@@ -792,7 +886,7 @@ function dismissToast(t) {
 function esc(s) {
   if (typeof s !== 'string') return '';
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-           .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+          .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 }
 
 function clip(s, max) {
@@ -804,11 +898,19 @@ function timeAgo(ts) {
   if (s < 60)    return 'Just now';
   if (s < 3600)  return `${Math.floor(s/60)}m ago`;
   if (s < 86400) return `${Math.floor(s/3600)}h ago`;
-  return new Date(ts).toLocaleDateString(undefined, { month:'short', day:'numeric' });
+  return new Date(ts).toLocaleDateString(undefined,{month:'short',day:'numeric'});
 }
 
-function flashBtn(btn, colour) {
-  btn.style.color = colour;
-  btn.style.borderColor = colour;
+function genId() {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+}
+
+function makeEntryId(src, tgt, text) {
+  return `${src}_${tgt}_${text.slice(0,30)}`;
+}
+
+function flash(btn, color) {
+  btn.style.color = color;
+  btn.style.borderColor = color;
   setTimeout(() => { btn.style.color = ''; btn.style.borderColor = ''; }, 1200);
 }
