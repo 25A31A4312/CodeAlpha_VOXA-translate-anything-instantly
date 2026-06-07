@@ -1,62 +1,74 @@
 /**
  * VOXA — script.js
- * Translation engine: Google Translate unofficial API
- * (works in browser, no API key, no CORS issues)
+ * AI Powered Language Translator
  */
 
 'use strict';
 
-/* ─────────────────────────────────────────────────────
-   LANGUAGE LIST — all languages with codes Google uses
-───────────────────────────────────────────────────── */
-const LANGUAGES = [
-  { code: 'auto',  name: 'Auto Detect' },
-  { code: 'af',    name: 'Afrikaans' },
-  { code: 'ar',    name: 'Arabic' },
-  { code: 'bn',    name: 'Bengali' },
-  { code: 'cs',    name: 'Czech' },
-  { code: 'da',    name: 'Danish' },
-  { code: 'de',    name: 'German' },
-  { code: 'el',    name: 'Greek' },
+/* ─────────────────────────────────────────
+   CONSTANTS
+───────────────────────────────────────── */
+const CHAR_MAX   = 5000;
+const CHAR_WARN  = 4000;
+const HIST_MAX   = 50;
+const FAV_MAX    = 100;
+const AUTO_DELAY = 1000;
+
+const K_THEME = 'voxa_theme';
+const K_HIST  = 'voxa_hist';
+const K_FAVS  = 'voxa_favs';
+
+/* ─────────────────────────────────────────
+   LANGUAGE LIST
+───────────────────────────────────────── */
+const LANG_LIST = [
   { code: 'en',    name: 'English' },
   { code: 'es',    name: 'Spanish' },
-  { code: 'fi',    name: 'Finnish' },
   { code: 'fr',    name: 'French' },
-  { code: 'gu',    name: 'Gujarati' },
-  { code: 'he',    name: 'Hebrew' },
-  { code: 'hi',    name: 'Hindi' },
-  { code: 'hr',    name: 'Croatian' },
-  { code: 'hu',    name: 'Hungarian' },
-  { code: 'id',    name: 'Indonesian' },
+  { code: 'de',    name: 'German' },
   { code: 'it',    name: 'Italian' },
-  { code: 'ja',    name: 'Japanese' },
-  { code: 'kn',    name: 'Kannada' },
-  { code: 'ko',    name: 'Korean' },
-  { code: 'ml',    name: 'Malayalam' },
-  { code: 'mr',    name: 'Marathi' },
-  { code: 'ms',    name: 'Malay' },
-  { code: 'nl',    name: 'Dutch' },
-  { code: 'no',    name: 'Norwegian' },
-  { code: 'pa',    name: 'Punjabi' },
-  { code: 'pl',    name: 'Polish' },
   { code: 'pt',    name: 'Portuguese' },
-  { code: 'ro',    name: 'Romanian' },
   { code: 'ru',    name: 'Russian' },
-  { code: 'sk',    name: 'Slovak' },
-  { code: 'sv',    name: 'Swedish' },
-  { code: 'sw',    name: 'Swahili' },
-  { code: 'ta',    name: 'Tamil' },
-  { code: 'te',    name: 'Telugu' },   // ← Telugu included
-  { code: 'th',    name: 'Thai' },
-  { code: 'tr',    name: 'Turkish' },
-  { code: 'uk',    name: 'Ukrainian' },
-  { code: 'ur',    name: 'Urdu' },
-  { code: 'vi',    name: 'Vietnamese' },
+  { code: 'ja',    name: 'Japanese' },
   { code: 'zh-CN', name: 'Chinese (Simplified)' },
+  { code: 'ar',    name: 'Arabic' },
+  { code: 'ko',    name: 'Korean' },
+  { code: 'hi',    name: 'Hindi' },
+  { code: 'te',    name: 'Telugu' },
+  { code: 'ta',    name: 'Tamil' },
+  { code: 'kn',    name: 'Kannada' },
+  { code: 'ml',    name: 'Malayalam' },
+  { code: 'bn',    name: 'Bengali' },
+  { code: 'gu',    name: 'Gujarati' },
+  { code: 'mr',    name: 'Marathi' },
+  { code: 'pa',    name: 'Punjabi' },
+  { code: 'ur',    name: 'Urdu' },
+  { code: 'nl',    name: 'Dutch' },
+  { code: 'pl',    name: 'Polish' },
+  { code: 'tr',    name: 'Turkish' },
+  { code: 'sv',    name: 'Swedish' },
+  { code: 'da',    name: 'Danish' },
+  { code: 'fi',    name: 'Finnish' },
+  { code: 'uk',    name: 'Ukrainian' },
+  { code: 'cs',    name: 'Czech' },
+  { code: 'ro',    name: 'Romanian' },
+  { code: 'hu',    name: 'Hungarian' },
+  { code: 'el',    name: 'Greek' },
+  { code: 'he',    name: 'Hebrew' },
+  { code: 'th',    name: 'Thai' },
+  { code: 'vi',    name: 'Vietnamese' },
+  { code: 'id',    name: 'Indonesian' },
+  { code: 'ms',    name: 'Malay' },
+  { code: 'af',    name: 'Afrikaans' },
+  { code: 'no',    name: 'Norwegian' },
+  { code: 'sk',    name: 'Slovak' },
+  { code: 'sw',    name: 'Swahili' },
   { code: 'zh-TW', name: 'Chinese (Traditional)' },
 ];
 
-/* Speech recognition BCP-47 map */
+/* ─────────────────────────────────────────
+   SPEECH BCP-47 MAP
+───────────────────────────────────────── */
 const SPEECH_MAP = {
   en:'en-US', hi:'hi-IN', te:'te-IN', ta:'ta-IN', kn:'kn-IN',
   ml:'ml-IN', bn:'bn-IN', gu:'gu-IN', mr:'mr-IN', pa:'pa-IN',
@@ -65,169 +77,170 @@ const SPEECH_MAP = {
   nl:'nl-NL', pl:'pl-PL', tr:'tr-TR', sv:'sv-SE', da:'da-DK',
   fi:'fi-FI', vi:'vi-VN', id:'id-ID', uk:'uk-UA', cs:'cs-CZ',
   ro:'ro-RO', hu:'hu-HU', el:'el-GR', he:'he-IL', th:'th-TH',
-  zh:'zh-CN', 'zh-CN':'zh-CN', 'zh-TW':'zh-TW',
+  'zh-CN':'zh-CN', 'zh-TW':'zh-TW',
 };
 const toBCP47 = code => SPEECH_MAP[code] || code;
 
-/* ─────────────────────────────────────────────────────
-   APP STATE
-───────────────────────────────────────────────────── */
-const state = {
-  translating:  false,
-  micActive:    false,
-  recognition:  null,
-  autoTimer:    null,
-  translation:  '',
-  srcText:      '',
-  srcCode:      '',
-  tgtCode:      '',
-  history:      [],
-  favorites:    [],
-  activeTab:    'history',
-  drawerOpen:   false,
+/* ─────────────────────────────────────────
+   STATE
+───────────────────────────────────────── */
+const S = {
+  translating: false,
+  micActive:   false,
+  recognition: null,
+  drawerOpen:  false,
+  activeTab:   'history',
+  translation: '',
+  srcText:     '',
+  srcLang:     '',
+  tgtLang:     '',
+  history:     [],
+  favorites:   [],
+  autoTimer:   null,
 };
 
-/* localStorage keys */
-const KEY_THEME = 'voxa_theme';
-const KEY_HIST  = 'voxa_hist';
-const KEY_FAVS  = 'voxa_favs';
+/* ─────────────────────────────────────────
+   DOM CACHE
+   ⚠️  IDs must exactly match your index.html
+───────────────────────────────────────── */
+let E = {};
 
-/* ─────────────────────────────────────────────────────
-   DOM — grabbed after DOMContentLoaded
-───────────────────────────────────────────────────── */
-let D = {};
+function cacheElements() {
+  E = {
+    /* Header */
+    btnHistory:   document.getElementById('btn-history'),
+    btnTheme:     document.getElementById('btn-theme'),
+    themeLabel:   document.getElementById('theme-label'),
+    iconMoon:     document.getElementById('icon-moon'),
+    iconSun:      document.getElementById('icon-sun'),
 
-document.addEventListener('DOMContentLoaded', () => {
-  /* Grab every element we need */
-  D = {
-    srcLang:       document.getElementById('src-lang'),
-    tgtLang:       document.getElementById('tgt-lang'),
-    btnSwap:       document.getElementById('btn-swap'),
-    tgtPill:       document.getElementById('tgt-pill'),
+    /* Language selectors — matching index.html ids */
+    srcLang:      document.getElementById('src-lang'),
+    tgtLang:      document.getElementById('tgt-lang'),
+    btnSwap:      document.getElementById('btn-swap'),
+    tgtPill:      document.getElementById('tgt-pill'),
 
-    srcText:       document.getElementById('src-text'),
-    charCt:        document.getElementById('char-ct'),
-    detectedWrap:  document.getElementById('detected-wrap'),
-    detectedLang:  document.getElementById('detected-lang'),
-    srcStats:      document.getElementById('src-stats'),
-    wordCt:        document.getElementById('word-ct'),
-    readTime:      document.getElementById('read-time'),
+    /* Source panel */
+    srcText:      document.getElementById('src-text'),
+    charCt:       document.getElementById('char-ct'),
+    detectedWrap: document.getElementById('detected-wrap'),
+    detectedLang: document.getElementById('detected-lang'),
+    srcStats:     document.getElementById('src-stats'),
+    wordCt:       document.getElementById('word-ct'),
+    readTime:     document.getElementById('read-time'),
+    btnMic:       document.getElementById('btn-mic'),
+    btnClear:     document.getElementById('btn-clear'),
+    btnTranslate: document.getElementById('btn-translate'),
+    tbLabel:      document.getElementById('tb-label'),
+    tbSpin:       document.getElementById('tb-spin'),
+    tbArrow:      document.getElementById('tb-arrow'),
 
-    btnMic:        document.getElementById('btn-mic'),
-    btnClear:      document.getElementById('btn-clear'),
-    btnTranslate:  document.getElementById('btn-translate'),
-    tbLabel:       document.getElementById('tb-label'),
-    tbSpin:        document.getElementById('tb-spin'),
-    tbArrow:       document.getElementById('tb-arrow'),
-
+    /* Target panel */
     outPlaceholder: document.getElementById('out-placeholder'),
     outSkeleton:    document.getElementById('out-skeleton'),
     outResult:      document.getElementById('out-result'),
+    btnTts:         document.getElementById('btn-tts'),
+    btnFav:         document.getElementById('btn-fav'),
+    btnCopy:        document.getElementById('btn-copy'),
+    btnDl:          document.getElementById('btn-dl'),
 
-    btnTts:        document.getElementById('btn-tts'),
-    btnFav:        document.getElementById('btn-fav'),
-    btnCopy:       document.getElementById('btn-copy'),
-    btnDl:         document.getElementById('btn-dl'),
+    /* Quick pills */
+    quickPills:   document.querySelectorAll('.qpill'),
 
-    btnHistory:    document.getElementById('btn-history'),
-    btnTheme:      document.getElementById('btn-theme'),
-    themeLabel:    document.getElementById('theme-label'),
-    iconMoon:      document.getElementById('icon-moon'),
-    iconSun:       document.getElementById('icon-sun'),
+    /* Drawer */
+    overlay:        document.getElementById('overlay'),
+    drawer:         document.getElementById('drawer'),
+    btnCloseDrawer: document.getElementById('btn-close-drawer'),
+    drawerTabs:     document.querySelectorAll('.dtab'),
+    tabHistory:     document.getElementById('tab-history'),
+    tabFavorites:   document.getElementById('tab-favorites'),
+    histList:       document.getElementById('hist-list'),
+    histEmpty:      document.getElementById('hist-empty'),
+    favList:        document.getElementById('fav-list'),
+    favEmpty:       document.getElementById('fav-empty'),
+    btnClrHist:     document.getElementById('btn-clr-hist'),
 
-    overlay:       document.getElementById('overlay'),
-    drawer:        document.getElementById('drawer'),
-    btnCloseDrawer:document.getElementById('btn-close-drawer'),
-    drawerTabs:    document.querySelectorAll('.dtab'),
-    tabHistory:    document.getElementById('tab-history'),
-    tabFavorites:  document.getElementById('tab-favorites'),
-    histList:      document.getElementById('hist-list'),
-    histEmpty:     document.getElementById('hist-empty'),
-    favList:       document.getElementById('fav-list'),
-    favEmpty:      document.getElementById('fav-empty'),
-    btnClrHist:    document.getElementById('btn-clr-hist'),
-
-    quickPills:    document.querySelectorAll('.qpill'),
-    toastBox:      document.getElementById('toast-container'),
+    /* Toast */
+    toastBox:     document.getElementById('toast-container'),
   };
 
-  /* Verify critical elements exist */
-  const missing = ['srcLang','tgtLang','srcText','btnTranslate','outResult']
-    .filter(k => !D[k]);
-  if (missing.length) {
-    console.error('[VOXA] Missing DOM elements:', missing);
-    return;
-  }
-
-  init();
-});
-
-/* ─────────────────────────────────────────────────────
-   INIT
-───────────────────────────────────────────────────── */
-
-  function init() {
-  /* Rebuild TO dropdown from LANGUAGES array — guaranteed to work */
-  D.tgtLang.innerHTML = '';
-  LANGUAGES
-    .filter(l => l.code !== 'auto')
-    .forEach(({ code, name }) => {
-      D.tgtLang.appendChild(new Option(name, code));
-    });
-  D.tgtLang.value = 'en';
-
-  /* Rebuild FROM dropdown */
-  D.srcLang.innerHTML = '';
-  LANGUAGES.forEach(({ code, name }) => {
-    D.srcLang.appendChild(new Option(name, code));
+  /* Log any missing elements so you can spot ID mismatches immediately */
+  Object.entries(E).forEach(([key, val]) => {
+    if (!val) console.warn(`[VOXA] Missing element: "${key}"`);
   });
-  D.srcLang.value = 'auto';
+}
 
+/* ─────────────────────────────────────────
+   BOOT
+───────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => {
+  cacheElements();
+  buildDropdowns();   // fill both <select> from LANG_LIST
   loadTheme();
   loadStorage();
+  bindEvents();
   renderHistory();
   renderFavorites();
-  bindEvents();
   syncPills();
+  updateTgtPill();
+});
+
+/* ─────────────────────────────────────────
+   BUILD DROPDOWNS FROM LANG_LIST
+   (Does NOT depend on any external API)
+───────────────────────────────────────── */
+function buildDropdowns() {
+  /* FROM — first option is Auto Detect, rest from LANG_LIST */
+  E.srcLang.innerHTML = '<option value="auto">Auto Detect</option>';
+  LANG_LIST.forEach(({ code, name }) => {
+    E.srcLang.appendChild(new Option(name, code));
+  });
+  E.srcLang.value = 'auto';
+
+  /* TO — all languages, default English */
+  E.tgtLang.innerHTML = '';
+  LANG_LIST.forEach(({ code, name }) => {
+    E.tgtLang.appendChild(new Option(name, code));
+  });
+  E.tgtLang.value = 'en';
+
   updateTgtPill();
 }
 
-/* ─────────────────────────────────────────────────────
-   BUILD LANGUAGE DROPDOWNS
-───────────────────────────────────────────────────── */
-
+/* ─────────────────────────────────────────
+   HELPERS
+───────────────────────────────────────── */
 function getLangName(code) {
   if (!code || code === 'auto') return 'Auto';
-  const found = LANGUAGES.find(l => l.code === code);
+  const found = LANG_LIST.find(l => l.code === code);
   return found ? found.name : code.toUpperCase();
 }
 
 function updateTgtPill() {
-  if (D.tgtPill) {
-    D.tgtPill.textContent = getLangName(D.tgtLang.value);
+  if (E.tgtPill) {
+    const sel = E.tgtLang.selectedOptions[0];
+    E.tgtPill.textContent = sel ? sel.text : 'English';
   }
 }
 
 function syncPills() {
-  const tgt = D.tgtLang.value;
-  D.quickPills.forEach(p => {
-    p.classList.toggle('active', p.dataset.code === tgt);
-  });
+  const tgt = E.tgtLang.value;
+  E.quickPills.forEach(p => p.classList.toggle('active', p.dataset.code === tgt));
 }
 
-/* ─────────────────────────────────────────────────────
+/* ─────────────────────────────────────────
    THEME
-───────────────────────────────────────────────────── */
+───────────────────────────────────────── */
 function loadTheme() {
-  applyTheme(localStorage.getItem(KEY_THEME) || 'dark');
+  applyTheme(localStorage.getItem(K_THEME) || 'dark');
 }
 
 function applyTheme(t) {
   document.documentElement.setAttribute('data-theme', t);
-  if (D.themeLabel) D.themeLabel.textContent = t === 'dark' ? 'Light' : 'Dark';
-  if (D.iconMoon)   D.iconMoon.style.display  = t === 'dark'  ? 'block' : 'none';
-  if (D.iconSun)    D.iconSun.style.display   = t === 'light' ? 'block' : 'none';
-  localStorage.setItem(KEY_THEME, t);
+  if (E.themeLabel) E.themeLabel.textContent = t === 'dark' ? 'Light' : 'Dark';
+  if (E.iconMoon)   E.iconMoon.style.display  = t === 'dark'  ? 'block' : 'none';
+  if (E.iconSun)    E.iconSun.style.display   = t === 'light' ? 'block' : 'none';
+  localStorage.setItem(K_THEME, t);
 }
 
 function toggleTheme() {
@@ -235,138 +248,105 @@ function toggleTheme() {
   applyTheme(cur === 'dark' ? 'light' : 'dark');
 }
 
-/* ─────────────────────────────────────────────────────
+/* ─────────────────────────────────────────
    STORAGE
-───────────────────────────────────────────────────── */
+───────────────────────────────────────── */
 function loadStorage() {
-  try { state.history   = JSON.parse(localStorage.getItem(KEY_HIST)) || []; } catch { state.history   = []; }
-  try { state.favorites = JSON.parse(localStorage.getItem(KEY_FAVS)) || []; } catch { state.favorites = []; }
+  try { S.history   = JSON.parse(localStorage.getItem(K_HIST)) || []; } catch { S.history   = []; }
+  try { S.favorites = JSON.parse(localStorage.getItem(K_FAVS)) || []; } catch { S.favorites = []; }
 }
-function saveHistory()   { try { localStorage.setItem(KEY_HIST, JSON.stringify(state.history));   } catch {} }
-function saveFavorites() { try { localStorage.setItem(KEY_FAVS, JSON.stringify(state.favorites)); } catch {} }
+function saveHistory()   { try { localStorage.setItem(K_HIST, JSON.stringify(S.history));   } catch {} }
+function saveFavorites() { try { localStorage.setItem(K_FAVS, JSON.stringify(S.favorites)); } catch {} }
 
-/* ─────────────────────────────────────────────────────
+/* ─────────────────────────────────────────
    BIND EVENTS
-───────────────────────────────────────────────────── */
+───────────────────────────────────────── */
 function bindEvents() {
-  /* Theme */
-  D.btnTheme.addEventListener('click', toggleTheme);
+  E.btnTheme.addEventListener('click', toggleTheme);
+  E.btnHistory.addEventListener('click', openDrawer);
+  E.btnCloseDrawer.addEventListener('click', closeDrawer);
+  E.overlay.addEventListener('click', closeDrawer);
+  E.btnClrHist.addEventListener('click', clearHistory);
 
-  /* History drawer */
-  D.btnHistory.addEventListener('click', openDrawer);
-  D.btnCloseDrawer.addEventListener('click', closeDrawer);
-  D.overlay.addEventListener('click', closeDrawer);
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && state.drawerOpen) closeDrawer(); });
-
-  /* Drawer tabs */
-  D.drawerTabs.forEach(tab => {
+  E.drawerTabs.forEach(tab => {
     tab.addEventListener('click', () => switchTab(tab.dataset.tab));
   });
 
-  /* Clear history */
-  D.btnClrHist.addEventListener('click', clearHistory);
+  E.tgtLang.addEventListener('change', () => { updateTgtPill(); syncPills(); });
+  E.srcLang.addEventListener('change', hideDetected);
+  E.btnSwap.addEventListener('click', swapLanguages);
 
-  /* Language selectors */
-  D.tgtLang.addEventListener('change', () => {
-    updateTgtPill();
-    syncPills();
+  E.srcText.addEventListener('input', onTextInput);
+  E.srcText.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doTranslate(); }
   });
 
-  /* Swap */
-  D.btnSwap.addEventListener('click', swapLanguages);
+  E.btnTranslate.addEventListener('click', doTranslate);
+  E.btnClear.addEventListener('click', clearAll);
+  E.btnMic.addEventListener('click', toggleMic);
+  E.btnTts.addEventListener('click', doTTS);
+  E.btnFav.addEventListener('click', toggleFavCurrent);
+  E.btnCopy.addEventListener('click', doCopy);
+  E.btnDl.addEventListener('click', doDownload);
 
-  /* Textarea */
-  D.srcText.addEventListener('input', onTextInput);
-  D.srcText.addEventListener('keydown', e => {
-    /* Enter = translate, Shift+Enter = new line */
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      doTranslate();
-    }
-  });
-
-  /* Translate button */
-  D.btnTranslate.addEventListener('click', doTranslate);
-
-  /* Clear */
-  D.btnClear.addEventListener('click', clearAll);
-
-  /* Mic */
-  D.btnMic.addEventListener('click', toggleMic);
-
-  /* Output actions */
-  D.btnTts.addEventListener('click',  doTTS);
-  D.btnFav.addEventListener('click',  toggleFavCurrent);
-  D.btnCopy.addEventListener('click', doCopy);
-  D.btnDl.addEventListener('click',   doDownload);
-
-  /* Quick pills */
-  D.quickPills.forEach(pill => {
+  E.quickPills.forEach(pill => {
     pill.addEventListener('click', () => {
-      D.tgtLang.value = pill.dataset.code;
+      E.tgtLang.value = pill.dataset.code;
       updateTgtPill();
       syncPills();
-      /* Auto-translate if text exists */
-      if (D.srcText.value.trim().length > 0) doTranslate();
+      if (E.srcText.value.trim()) doTranslate();
     });
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && S.drawerOpen) closeDrawer();
   });
 }
 
-/* ─────────────────────────────────────────────────────
-   TEXT INPUT HANDLER
-───────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────
+   TEXT INPUT
+───────────────────────────────────────── */
 function onTextInput() {
-  const text = D.srcText.value;
+  const text = E.srcText.value;
   const len  = text.length;
 
-  /* Character counter */
-  D.charCt.textContent = `${len.toLocaleString()} / 5000`;
-  D.charCt.className = 'char-ct' + (len >= 5000 ? ' over' : len >= 4000 ? ' warn' : '');
+  E.charCt.textContent = `${len.toLocaleString()} / 5000`;
+  E.charCt.className = 'char-ct' + (len >= 5000 ? ' over' : len >= 4000 ? ' warn' : '');
 
-  /* Stats bar */
   if (text.trim()) {
-    const words   = text.trim().split(/\s+/).filter(Boolean).length;
-    const minRead = Math.max(1, Math.ceil(words / 200));
-    D.wordCt.textContent  = `Words: ${words}`;
-    D.readTime.textContent = `~${minRead} min read`;
-    D.srcStats.style.display = 'flex';
+    const words = text.trim().split(/\s+/).filter(Boolean).length;
+    const mins  = Math.max(1, Math.ceil(words / 200));
+    E.wordCt.textContent  = `Words: ${words}`;
+    E.readTime.textContent = `~${mins} min read`;
+    E.srcStats.style.display = 'flex';
   } else {
-    D.srcStats.style.display = 'none';
+    E.srcStats.style.display = 'none';
   }
 
-  /* Debounce auto-translate (1 second after user stops typing) */
-  clearTimeout(state.autoTimer);
+  clearTimeout(S.autoTimer);
   if (text.trim().length >= 3) {
-    state.autoTimer = setTimeout(() => {
-      if (!state.translating && D.srcText.value.trim().length >= 3) {
-        doTranslate();
-      }
-    }, 1000);
+    S.autoTimer = setTimeout(() => {
+      if (!S.translating && E.srcText.value.trim().length >= 3) doTranslate();
+    }, AUTO_DELAY);
   }
 }
 
-/* ─────────────────────────────────────────────────────
-   SWAP LANGUAGES
-───────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────
+   SWAP
+───────────────────────────────────────── */
 function swapLanguages() {
-  const src = D.srcLang.value;
-  const tgt = D.tgtLang.value;
-
-  if (src === 'auto') {
-    showToast('Cannot swap when source is Auto Detect', 'warn');
-    return;
+  if (E.srcLang.value === 'auto') {
+    showToast('Cannot swap when source is Auto Detect', 'warn'); return;
   }
+  const src = E.srcLang.value;
+  const tgt = E.tgtLang.value;
+  E.srcLang.value = tgt;
+  E.tgtLang.value = src;
 
-  /* Swap select values */
-  D.srcLang.value = tgt;
-  D.tgtLang.value = src;
-
-  /* Swap text content */
-  const oldSrc = D.srcText.value;
-  const oldTgt = state.translation;
-  D.srcText.value = oldTgt;
-  state.translation = oldSrc;
-  if (oldSrc) showResult(oldSrc);
+  const oldSrc = E.srcText.value;
+  E.srcText.value = S.translation;
+  if (S.translation) showResult(S.translation);
+  S.translation = oldSrc;
 
   updateTgtPill();
   syncPills();
@@ -374,316 +354,227 @@ function swapLanguages() {
   hideDetected();
 }
 
-/* ─────────────────────────────────────────────────────
-   TRANSLATE  — Google Translate unofficial API
-   URL: https://translate.googleapis.com/translate_a/single
-   No API key needed. Works from browsers (CORS allowed).
-   Response format: [[["translatedText","sourceText",...],...],...]
-───────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────
+   TRANSLATE  —  Google Translate (no key needed)
+───────────────────────────────────────── */
 async function doTranslate() {
-  const text = D.srcText.value.trim();
+  const text = E.srcText.value.trim();
+  if (!text) { showToast('Please enter text to translate', 'warn'); return; }
+  if (S.translating) return;
 
-  if (!text) {
-    showToast('Please enter some text to translate', 'warn');
-    return;
-  }
+  const srcCode = E.srcLang.value;
+  const tgtCode = E.tgtLang.value;
+  if (!tgtCode) { showToast('Please select a target language', 'warn'); return; }
 
-  /* Guard against parallel requests */
-  if (state.translating) return;
-
-  const srcCode = D.srcLang.value;  /* 'auto' or lang code */
-  const tgtCode = D.tgtLang.value;
-
-  if (!tgtCode) {
-    showToast('Please select a target language', 'warn');
-    return;
-  }
-
-  /* Same language check */
-  if (srcCode !== 'auto' && srcCode === tgtCode) {
-    showToast('Source and target languages are the same', 'warn');
-    return;
-  }
-
-  state.translating = true;
-  setLoadingState(true);
+  S.translating = true;
+  setLoading(true);
 
   try {
-    const result = await googleTranslate(text, srcCode, tgtCode);
+    const { translatedText, detectedLang } = await googleTranslate(text, srcCode, tgtCode);
 
-    /* Save to state */
-    state.translation = result.translatedText;
-    state.srcText     = text;
-    state.srcCode     = result.detectedLang || srcCode;
-    state.tgtCode     = tgtCode;
+    S.translation = translatedText;
+    S.srcText     = text;
+    S.srcLang     = detectedLang || srcCode;
+    S.tgtLang     = tgtCode;
 
-    /* Show result */
-    showResult(result.translatedText);
-    enableOutputButtons(true);
+    showResult(translatedText);
+    enableOutputBtns(true);
 
-    /* Show detected language badge */
-    if (srcCode === 'auto' && result.detectedLang) {
-      D.detectedLang.textContent    = getLangName(result.detectedLang);
-      D.detectedWrap.style.display  = 'flex';
+    if (srcCode === 'auto' && detectedLang) {
+      E.detectedLang.textContent   = getLangName(detectedLang);
+      E.detectedWrap.style.display = 'flex';
     }
 
-    /* Save to history */
+    /* Save history */
     const entry = {
-      id:      Date.now() + Math.random().toString(36).slice(2),
+      id:      Date.now() + '-' + Math.random().toString(36).slice(2),
       srcText: text,
-      tgtText: result.translatedText,
-      srcCode: state.srcCode,
+      tgtText: translatedText,
+      srcCode: S.srcLang,
       tgtCode: tgtCode,
-      srcName: getLangName(state.srcCode),
+      srcName: getLangName(S.srcLang),
       tgtName: getLangName(tgtCode),
       ts:      Date.now(),
     };
-    state.history.unshift(entry);
-    if (state.history.length > 50) state.history.length = 50;
+    S.history.unshift(entry);
+    if (S.history.length > HIST_MAX) S.history.length = HIST_MAX;
     saveHistory();
     renderHistory();
     syncFavButton();
 
   } catch (err) {
-    console.error('[VOXA] Translation failed:', err);
-
-    let msg = 'Translation failed. Check your internet connection.';
-    if (err.message?.includes('NetworkError') || err.message?.includes('Failed to fetch')) {
-      msg = 'No internet connection. Please check your network.';
-    } else if (err.message) {
-      msg = err.message;
-    }
-    showToast(msg, 'err');
+    console.error('[VOXA]', err);
+    showToast(err.message || 'Translation failed. Check your internet.', 'err');
     showPlaceholder();
-
   } finally {
-    state.translating = false;
-    setLoadingState(false);
+    S.translating = false;
+    setLoading(false);
   }
 }
 
-/* ─────────────────────────────────────────────────────
-   GOOGLE TRANSLATE API CALL
-   Uses the unofficial "gtx" client endpoint.
-   dt=t  → translated text
-   dt=ld → detected language
-───────────────────────────────────────────────────── */
-async function googleTranslate(text, srcLang, tgtLang) {
-  /* Google uses 'zh-CN' and 'zh-TW' — pass through as-is */
-  const sl = srcLang === 'auto' ? 'auto' : srcLang;
-  const tl = tgtLang;
+/* ─────────────────────────────────────────
+   GOOGLE TRANSLATE  (unofficial, free, no key)
+   Works in any browser — CORS allowed by Google
+───────────────────────────────────────── */
+async function googleTranslate(text, sl, tl) {
+  const url =
+    `https://translate.googleapis.com/translate_a/single` +
+    `?client=gtx&sl=${encodeURIComponent(sl)}&tl=${encodeURIComponent(tl)}` +
+    `&dt=t&dt=ld&q=${encodeURIComponent(text)}`;
 
-  const url = new URL('https://translate.googleapis.com/translate_a/single');
-  url.searchParams.set('client', 'gtx');
-  url.searchParams.set('sl', sl);
-  url.searchParams.set('tl', tl);
-  url.searchParams.set('dt', 't');   /* translated text */
-  url.searchParams.set('dt', 'ld');  /* detected language */
-  url.searchParams.set('q', text);
+  const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
 
-  /* Build URL manually to allow multiple 'dt' params */
-  const apiUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(sl)}&tl=${encodeURIComponent(tl)}&dt=t&dt=ld&q=${encodeURIComponent(text)}`;
-
-  const res = await fetch(apiUrl, {
-    method: 'GET',
-    signal: AbortSignal.timeout(15000),
-  });
-
-  if (!res.ok) {
-    throw new Error(`Translation service error (HTTP ${res.status}). Please try again.`);
-  }
+  if (!res.ok) throw new Error(`Translation service error (HTTP ${res.status})`);
 
   const data = await res.json();
 
-  /*
-   * Response structure:
-   * data[0] = array of translation chunks: [[translatedChunk, originalChunk, ...], ...]
-   * data[2] = detected language code (when sl=auto)
-   */
-  if (!data || !Array.isArray(data) || !data[0]) {
-    throw new Error('Unexpected response from translation service.');
+  if (!data || !Array.isArray(data[0])) {
+    throw new Error('Unexpected response from translation service');
   }
 
-  /* Join all translated chunks */
+  /* data[0] = array of [translatedChunk, originalChunk] pairs */
   const translatedText = data[0]
     .filter(chunk => Array.isArray(chunk) && chunk[0])
     .map(chunk => chunk[0])
     .join('');
 
-  if (!translatedText.trim()) {
-    throw new Error('Translation returned empty. Try different text.');
-  }
+  if (!translatedText.trim()) throw new Error('Empty translation returned');
 
-  /* Detected language is at data[2] when sl=auto */
-  const detectedLang = (srcLang === 'auto' && data[2]) ? data[2] : null;
+  /* data[2] = detected language when sl=auto */
+  const detectedLang = (sl === 'auto' && data[2]) ? data[2] : null;
 
   return { translatedText, detectedLang };
 }
 
-/* ─────────────────────────────────────────────────────
-   OUTPUT STATE HELPERS
-───────────────────────────────────────────────────── */
-function setLoadingState(loading) {
-  D.btnTranslate.disabled = loading;
+/* ─────────────────────────────────────────
+   UI HELPERS
+───────────────────────────────────────── */
+function setLoading(on) {
+  E.btnTranslate.disabled = on;
+  if (E.tbLabel) E.tbLabel.style.display = on ? 'none'  : 'inline';
+  if (E.tbSpin)  E.tbSpin.style.display  = on ? 'block' : 'none';
+  if (E.tbArrow) E.tbArrow.style.display = on ? 'none'  : 'block';
 
-  if (D.tbLabel) D.tbLabel.style.display = loading ? 'none'   : 'inline';
-  if (D.tbSpin)  D.tbSpin.style.display  = loading ? 'block'  : 'none';
-  if (D.tbArrow) D.tbArrow.style.display = loading ? 'none'   : 'block';
-
-  if (loading) {
-    D.outPlaceholder.style.display = 'none';
-    D.outResult.style.display      = 'none';
-    D.outSkeleton.style.display    = 'flex';
-    enableOutputButtons(false);
+  if (on) {
+    E.outPlaceholder.style.display = 'none';
+    E.outResult.style.display      = 'none';
+    E.outSkeleton.style.display    = 'flex';
+    enableOutputBtns(false);
   } else {
-    D.outSkeleton.style.display = 'none';
+    E.outSkeleton.style.display = 'none';
   }
 }
 
 function showResult(text) {
-  D.outPlaceholder.style.display = 'none';
-  D.outSkeleton.style.display    = 'none';
-  D.outResult.style.display      = 'block';
-  D.outResult.textContent        = text; /* textContent = XSS safe */
+  E.outPlaceholder.style.display = 'none';
+  E.outSkeleton.style.display    = 'none';
+  E.outResult.style.display      = 'block';
+  E.outResult.textContent        = text;
 }
 
 function showPlaceholder() {
-  D.outPlaceholder.style.display = 'flex';
-  D.outSkeleton.style.display    = 'none';
-  D.outResult.style.display      = 'none';
+  E.outPlaceholder.style.display = 'flex';
+  E.outSkeleton.style.display    = 'none';
+  E.outResult.style.display      = 'none';
 }
 
-function enableOutputButtons(on) {
-  D.btnTts.disabled  = !on;
-  D.btnFav.disabled  = !on;
-  D.btnCopy.disabled = !on;
-  D.btnDl.disabled   = !on;
+function enableOutputBtns(on) {
+  E.btnTts.disabled  = !on;
+  E.btnFav.disabled  = !on;
+  E.btnCopy.disabled = !on;
+  E.btnDl.disabled   = !on;
 }
 
-function hideDetected() {
-  D.detectedWrap.style.display = 'none';
-}
+function hideDetected() { E.detectedWrap.style.display = 'none'; }
 
-/* ─────────────────────────────────────────────────────
-   CLEAR ALL
-───────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────
+   CLEAR
+───────────────────────────────────────── */
 function clearAll() {
-  D.srcText.value          = '';
-  D.charCt.textContent     = '0 / 5000';
-  D.charCt.className       = 'char-ct';
-  D.srcStats.style.display = 'none';
-  state.translation        = '';
-  state.srcText            = '';
-  clearTimeout(state.autoTimer);
+  E.srcText.value          = '';
+  E.charCt.textContent     = '0 / 5000';
+  E.charCt.className       = 'char-ct';
+  E.srcStats.style.display = 'none';
+  S.translation = '';
+  S.srcText     = '';
+  clearTimeout(S.autoTimer);
   hideDetected();
   showPlaceholder();
-  enableOutputButtons(false);
-  D.btnFav.classList.remove('fav-on');
-  D.srcText.focus();
+  enableOutputBtns(false);
+  E.btnFav.classList.remove('fav-on');
+  E.srcText.focus();
 }
 
-/* ─────────────────────────────────────────────────────
-   SPEECH TO TEXT (Microphone)
-───────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────
+   MIC (Speech to Text)
+───────────────────────────────────────── */
 function toggleMic() {
   if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-    showToast('Voice input not supported in this browser. Try Chrome.', 'err');
-    return;
+    showToast('Voice input not supported. Use Chrome.', 'err'); return;
   }
-  state.micActive ? stopMic() : startMic();
+  S.micActive ? stopMic() : startMic();
 }
 
 function startMic() {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const SR  = window.SpeechRecognition || window.webkitSpeechRecognition;
   const rec = new SR();
+  const raw = E.srcLang.value !== 'auto' ? E.srcLang.value : 'en';
+  rec.lang            = toBCP47(raw);
+  rec.continuous      = false;
+  rec.interimResults  = false;
 
-  /* Use correct BCP-47 tag for the selected source language */
-  const rawCode = D.srcLang.value !== 'auto' ? D.srcLang.value : 'en';
-  rec.lang = toBCP47(rawCode);
-
-  rec.continuous     = false;
-  rec.interimResults = false;
-
-  rec.onstart = () => {
-    state.micActive = true;
-    D.btnMic.classList.add('mic-on');
-    showToast(`Listening in ${rec.lang}…`, 'info');
-  };
-
-  rec.onresult = ev => {
-    const transcript = ev.results[0][0].transcript;
-    D.srcText.value  = D.srcText.value
-      ? D.srcText.value + ' ' + transcript
-      : transcript;
+  rec.onstart  = () => { S.micActive = true; E.btnMic.classList.add('mic-on'); showToast(`Listening (${rec.lang})…`, 'info'); };
+  rec.onresult = ev  => {
+    const t = ev.results[0][0].transcript;
+    E.srcText.value = E.srcText.value ? E.srcText.value + ' ' + t : t;
     onTextInput();
     doTranslate();
   };
-
-  rec.onerror = ev => {
-const msgs = {
-      'no-speech':     'No speech detected. Please try again.',
-      'audio-capture': 'Microphone not found.',
-      'not-allowed':   'Microphone permission denied.',
-      'network':       'Network error during voice input.',
-    };
-    showToast(msgs[ev.error] || 'Voice input error.', 'err');
+  rec.onerror  = ev  => {
+    const m = { 'no-speech':'No speech.', 'audio-capture':'No mic.', 'not-allowed':'Mic denied.', 'network':'Network error.' };
+    showToast(m[ev.error] || 'Voice error.', 'err');
     stopMic();
   };
-
   rec.onend = stopMic;
-  state.recognition = rec;
+  S.recognition = rec;
   rec.start();
 }
 
 function stopMic() {
-  state.micActive = false;
-  D.btnMic.classList.remove('mic-on');
-  try { state.recognition?.stop(); } catch {}
-  state.recognition = null;
+  S.micActive = false;
+  E.btnMic.classList.remove('mic-on');
+  try { S.recognition?.stop(); } catch {}
+  S.recognition = null;
 }
 
-/* ─────────────────────────────────────────────────────
-   TEXT TO SPEECH
-───────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────
+   TTS (Text to Speech)
+───────────────────────────────────────── */
 function doTTS() {
-  if (!('speechSynthesis' in window)) {
-    showToast('Text-to-speech not supported in this browser.', 'err');
-    return;
-  }
-  if (!state.translation) return;
-
+  if (!('speechSynthesis' in window)) { showToast('TTS not supported.', 'err'); return; }
+  if (!S.translation) return;
   window.speechSynthesis.cancel();
-
-  const u   = new SpeechSynthesisUtterance(state.translation);
-  u.lang    = toBCP47(D.tgtLang.value || 'en');
-  u.rate    = 0.95;
-  u.pitch   = 1.0;
-
-  u.onstart = () => {
-    D.btnTts.style.color       = 'var(--mint)';
-    D.btnTts.style.borderColor = 'var(--mint)';
-  };
-  u.onend = u.onerror = () => {
-    D.btnTts.style.color       = '';
-    D.btnTts.style.borderColor = '';
-  };
-
+  const u  = new SpeechSynthesisUtterance(S.translation);
+  u.lang   = toBCP47(E.tgtLang.value || 'en');
+  u.rate   = 0.95;
+  u.onstart  = () => { E.btnTts.style.color = 'var(--mint)'; E.btnTts.style.borderColor = 'var(--mint)'; };
+  u.onend    = () => { E.btnTts.style.color = ''; E.btnTts.style.borderColor = ''; };
+  u.onerror  = () => { E.btnTts.style.color = ''; E.btnTts.style.borderColor = ''; };
   window.speechSynthesis.speak(u);
 }
 
-/* ─────────────────────────────────────────────────────
+/* ─────────────────────────────────────────
    COPY
-───────────────────────────────────────────────────── */
+───────────────────────────────────────── */
 async function doCopy() {
-  if (!state.translation) return;
+  if (!S.translation) return;
   try {
-    await navigator.clipboard.writeText(state.translation);
-    showToast('Copied to clipboard!', 'ok');
-    flashBtn(D.btnCopy, 'var(--ok)');
+    await navigator.clipboard.writeText(S.translation);
+    showToast('Copied!', 'ok');
+    flashBtn(E.btnCopy, 'var(--ok)');
   } catch {
-    /* Fallback for older browsers */
     const ta = document.createElement('textarea');
-    ta.value = state.translation;
+    ta.value = S.translation;
     ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
     document.body.appendChild(ta);
     ta.select();
@@ -693,26 +584,21 @@ async function doCopy() {
   }
 }
 
-/* ─────────────────────────────────────────────────────
+/* ─────────────────────────────────────────
    DOWNLOAD
-───────────────────────────────────────────────────── */
+───────────────────────────────────────── */
 function doDownload() {
-  if (!state.translation) return;
+  if (!S.translation) return;
   const content = [
     'VOXA — AI Powered Language Translator',
     `Date: ${new Date().toLocaleString()}`,
-    `From: ${getLangName(state.srcCode)}  →  To: ${getLangName(state.tgtCode)}`,
-    '',
-    '── Original ──',
-    state.srcText,
-    '',
-    '── Translation ──',
-    state.translation,
+    `From: ${getLangName(S.srcLang)}  →  To: ${getLangName(S.tgtLang)}`,
+    '', '── Original ──', S.srcText,
+    '', '── Translation ──', S.translation,
   ].join('\n');
-
   const a    = document.createElement('a');
   a.href     = URL.createObjectURL(new Blob([content], { type: 'text/plain;charset=utf-8' }));
-  a.download = `voxa_${getLangName(state.tgtCode).replace(/\s+/g,'_').toLowerCase()}_${Date.now()}.txt`;
+  a.download = `voxa_${getLangName(S.tgtLang).replace(/\s+/g,'_').toLowerCase()}_${Date.now()}.txt`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -720,54 +606,52 @@ function doDownload() {
   showToast('Downloaded!', 'ok');
 }
 
-/* ─────────────────────────────────────────────────────
+/* ─────────────────────────────────────────
    FAVORITES
-───────────────────────────────────────────────────── */
+───────────────────────────────────────── */
+function makeFavId() {
+  return `${S.srcLang}|${S.tgtLang}|${S.srcText.slice(0, 40)}`;
+}
+
 function toggleFavCurrent() {
-  if (!state.translation) return;
-
-  const id  = `${state.srcCode}|${state.tgtCode}|${state.srcText.slice(0, 40)}`;
-  const idx = state.favorites.findIndex(f => f.favId === id);
-
+  if (!S.translation) return;
+  const id  = makeFavId();
+  const idx = S.favorites.findIndex(f => f.favId === id);
   if (idx > -1) {
-    state.favorites.splice(idx, 1);
-    D.btnFav.classList.remove('fav-on');
+    S.favorites.splice(idx, 1);
+    E.btnFav.classList.remove('fav-on');
     showToast('Removed from favorites.', 'info');
   } else {
-    if (state.favorites.length >= 100) state.favorites.pop();
-    state.favorites.unshift({
+    if (S.favorites.length >= FAV_MAX) S.favorites.pop();
+    S.favorites.unshift({
       favId:   id,
-      id:      Date.now() + Math.random().toString(36).slice(2),
-      srcText: state.srcText,
-      tgtText: state.translation,
-      srcCode: state.srcCode,
-      tgtCode: state.tgtCode,
-      srcName: getLangName(state.srcCode),
-      tgtName: getLangName(state.tgtCode),
-      ts:      Date.now(),
+      id:      Date.now() + '-' + Math.random().toString(36).slice(2),
+      srcText: S.srcText,    tgtText: S.translation,
+      srcCode: S.srcLang,    tgtCode: S.tgtLang,
+      srcName: getLangName(S.srcLang), tgtName: getLangName(S.tgtLang),
+      ts: Date.now(),
     });
-    D.btnFav.classList.add('fav-on');
+    E.btnFav.classList.add('fav-on');
     showToast('Saved to favorites! ⭐', 'ok');
   }
   saveFavorites();
   renderFavorites();
-  renderHistory(); /* re-render to sync star icons */
+  renderHistory();
 }
 
 function syncFavButton() {
-  const id    = `${state.srcCode}|${state.tgtCode}|${state.srcText.slice(0, 40)}`;
-  const isFav = state.favorites.some(f => f.favId === id);
-  D.btnFav.classList.toggle('fav-on', isFav);
+  const id = makeFavId();
+  E.btnFav.classList.toggle('fav-on', S.favorites.some(f => f.favId === id));
 }
 
 function toggleFavFromList(entry) {
-  const id  = entry.favId || `${entry.srcCode}|${entry.tgtCode}|${entry.srcText.slice(0, 40)}`;
-  const idx = state.favorites.findIndex(f => f.favId === id);
+  const id  = entry.favId || `${entry.srcCode}|${entry.tgtCode}|${entry.srcText.slice(0,40)}`;
+  const idx = S.favorites.findIndex(f => f.favId === id);
   if (idx > -1) {
-    state.favorites.splice(idx, 1);
+    S.favorites.splice(idx, 1);
     showToast('Removed from favorites.', 'info');
   } else {
-    state.favorites.unshift({ ...entry, favId: id });
+    S.favorites.unshift({ ...entry, favId: id });
     showToast('Saved! ⭐', 'ok');
   }
   saveFavorites();
@@ -776,83 +660,74 @@ function toggleFavFromList(entry) {
   syncFavButton();
 }
 
-/* ─────────────────────────────────────────────────────
-   HISTORY & FAVORITES RENDERING
-───────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────
+   HISTORY & FAVORITES RENDER
+───────────────────────────────────────── */
 function renderHistory() {
-  D.histList.innerHTML = '';
-  if (!state.history.length) {
-    D.histEmpty.style.display = 'block';
-    return;
-  }
-  D.histEmpty.style.display = 'none';
-  state.history.forEach(entry => {
-    D.histList.appendChild(buildEntry(entry));
-  });
+  E.histList.innerHTML = '';
+  const empty = !S.history.length;
+  E.histEmpty.style.display = empty ? 'block' : 'none';
+  if (!empty) S.history.forEach(e => E.histList.appendChild(buildCard(e)));
 }
 
 function renderFavorites() {
-  D.favList.innerHTML = '';
-  if (!state.favorites.length) {
-    D.favEmpty.style.display = 'block';
-    return;
-  }
-  D.favEmpty.style.display = 'none';
-  state.favorites.forEach(entry => {
-    D.favList.appendChild(buildEntry(entry));
-  });
+  E.favList.innerHTML = '';
+  const empty = !S.favorites.length;
+  E.favEmpty.style.display = empty ? 'block' : 'none';
+  if (!empty) S.favorites.forEach(e => E.favList.appendChild(buildCard(e)));
 }
 
-function buildEntry(entry) {
-  const isFav = state.favorites.some(f =>
-    f.favId === (entry.favId || `${entry.srcCode}|${entry.tgtCode}|${entry.srcText.slice(0,40)}`)
-  );
+function buildCard(entry) {
+  const favId = entry.favId || `${entry.srcCode}|${entry.tgtCode}|${entry.srcText.slice(0,40)}`;
+  const isFav = S.favorites.some(f => f.favId === favId);
 
   const div = document.createElement('div');
-  div.className = 'entry-card';
+  div.className = 'list-item';
+  div.setAttribute('role', 'button');
+  div.setAttribute('tabindex', '0');
 
   div.innerHTML = `
-    <div class="ec-head">
-      <span class="ec-langs">${esc(entry.srcName)} → ${esc(entry.tgtName)}</span>
-      <button class="star-btn ${isFav ? 'starred' : ''}" title="${isFav ? 'Remove favorite' : 'Add favorite'}">
+    <div class="list-item-head">
+      <div class="list-item-langs">
+        <span>${esc(entry.srcName)}</span>
+        <span class="arr">→</span>
+        <span>${esc(entry.tgtName)}</span>
+      </div>
+      <button class="star-btn ${isFav ? 'on' : ''}" title="${isFav ? 'Remove' : 'Favorite'}">
         ${isFav ? '⭐' : '☆'}
       </button>
     </div>
-    <p class="ec-src">${esc(clip(entry.srcText, 80))}</p>
-    <p class="ec-tgt">${esc(clip(entry.tgtText, 80))}</p>
-    <p class="ec-time">${timeAgo(entry.ts)}</p>
+    <div class="list-item-src">${esc(clip(entry.srcText, 80))}</div>
+    <div class="list-item-tgt">${esc(clip(entry.tgtText, 80))}</div>
+    <div class="list-item-time">${timeAgo(entry.ts)}</div>
   `;
 
-  /* Click card body = restore */
   div.addEventListener('click', e => {
     if (e.target.closest('.star-btn')) return;
     restoreEntry(entry);
   });
-
-  /* Star button */
+  div.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); restoreEntry(entry); }
+  });
   div.querySelector('.star-btn').addEventListener('click', e => {
     e.stopPropagation();
-    toggleFavFromList(entry);
+    toggleFavFromList({ ...entry, favId });
   });
 
   return div;
 }
 
 function restoreEntry(entry) {
-  /* Restore source language */
-  D.srcLang.value = entry.srcCode || 'auto';
-  D.tgtLang.value = entry.tgtCode || 'en';
-
-  /* Restore text */
-  D.srcText.value   = entry.srcText;
-  state.translation = entry.tgtText;
-  state.srcText     = entry.srcText;
-  state.srcCode     = entry.srcCode;
-  state.tgtCode     = entry.tgtCode;
-
+  E.srcLang.value = entry.srcCode || 'auto';
+  E.tgtLang.value = entry.tgtCode || 'en';
+  E.srcText.value = entry.srcText;
+  S.translation   = entry.tgtText;
+  S.srcText       = entry.srcText;
+  S.srcLang       = entry.srcCode;
+  S.tgtLang       = entry.tgtCode;
   onTextInput();
   showResult(entry.tgtText);
-  enableOutputButtons(true);
+  enableOutputBtns(true);
   updateTgtPill();
   syncPills();
   syncFavButton();
@@ -860,49 +735,48 @@ function restoreEntry(entry) {
 }
 
 function clearHistory() {
-  state.history = [];
+  S.history = [];
   saveHistory();
   renderHistory();
   showToast('History cleared.', 'info');
 }
 
-/* ─────────────────────────────────────────────────────
-   HISTORY DRAWER
-───────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────
+   DRAWER
+───────────────────────────────────────── */
 function openDrawer() {
-  state.drawerOpen = true;
-  D.overlay.style.display = 'block';
-  D.drawer.classList.add('open');
-  D.drawer.setAttribute('aria-hidden', 'false');
+  S.drawerOpen = true;
+  E.overlay.style.display = 'block';
+  E.drawer.classList.add('open');
+  E.drawer.setAttribute('aria-hidden', 'false');
   document.body.style.overflow = 'hidden';
 }
 
 function closeDrawer() {
-  state.drawerOpen = false;
-  D.overlay.style.display = 'none';
-  D.drawer.classList.remove('open');
-  D.drawer.setAttribute('aria-hidden', 'true');
+  S.drawerOpen = false;
+  E.overlay.style.display = 'none';
+  E.drawer.classList.remove('open');
+  E.drawer.setAttribute('aria-hidden', 'true');
   document.body.style.overflow = '';
 }
 
 function switchTab(tab) {
-  state.activeTab = tab;
-  D.drawerTabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-  D.tabHistory.style.display   = tab === 'history'   ? 'flex' : 'none';
-  D.tabFavorites.style.display = tab === 'favorites' ? 'flex' : 'none';
+  S.activeTab = tab;
+  E.drawerTabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  E.tabHistory.style.display   = tab === 'history'   ? 'flex' : 'none';
+  E.tabFavorites.style.display = tab === 'favorites' ? 'flex' : 'none';
 }
 
-/* ─────────────────────────────────────────────────────
-   TOAST NOTIFICATIONS
-───────────────────────────────────────────────────── */
-const ICONS = { ok: '✓', err: '✕', info: 'ℹ', warn: '⚠' };
+/* ─────────────────────────────────────────
+   TOASTS
+───────────────────────────────────────── */
+const ICONS = { ok:'✓', err:'✕', info:'ℹ', warn:'⚠' };
 
 function showToast(msg, type = 'info', ms = 3500) {
-  const t   = document.createElement('div');
+  const t = document.createElement('div');
   t.className = `toast ${type}`;
   t.innerHTML = `<span>${ICONS[type] || 'ℹ'}</span><span>${esc(msg)}</span>`;
-  D.toastBox.appendChild(t);
-
+  E.toastBox.appendChild(t);
   const timer = setTimeout(() => dismissToast(t), ms);
   t.addEventListener('click', () => { clearTimeout(timer); dismissToast(t); });
 }
@@ -912,37 +786,29 @@ function dismissToast(t) {
   t.addEventListener('animationend', () => t.remove(), { once: true });
 }
 
-/* ─────────────────────────────────────────────────────
+/* ─────────────────────────────────────────
    UTILITIES
-───────────────────────────────────────────────────── */
-/* HTML-escape to prevent XSS */
+───────────────────────────────────────── */
 function esc(s) {
   if (typeof s !== 'string') return '';
-  return s
-    .replace(/&/g,  '&amp;')
-    .replace(/</g,  '&lt;')
-    .replace(/>/g,  '&gt;')
-    .replace(/"/g,  '&quot;')
-    .replace(/'/g,  '&#039;');
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+           .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 }
 
-/* Truncate with ellipsis */
 function clip(s, max) {
   return s && s.length > max ? s.slice(0, max) + '…' : (s || '');
 }
 
-/* Human-readable time ago */
 function timeAgo(ts) {
   const s = Math.floor((Date.now() - ts) / 1000);
   if (s < 60)    return 'Just now';
-  if (s < 3600)  return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  if (s < 3600)  return `${Math.floor(s/60)}m ago`;
+  if (s < 86400) return `${Math.floor(s/3600)}h ago`;
+  return new Date(ts).toLocaleDateString(undefined, { month:'short', day:'numeric' });
 }
 
-/* Brief colour flash on a button for feedback */
 function flashBtn(btn, colour) {
-  btn.style.color       = colour;
+  btn.style.color = colour;
   btn.style.borderColor = colour;
   setTimeout(() => { btn.style.color = ''; btn.style.borderColor = ''; }, 1200);
 }
