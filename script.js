@@ -165,21 +165,32 @@ document.addEventListener('DOMContentLoaded', () => {
 /* ─────────────────────────────────────────────────────
    INIT
 ───────────────────────────────────────────────────── */
-function init() {
+
+  function init() {
+  /* Rebuild TO dropdown from LANGUAGES array — guaranteed to work */
+  D.tgtLang.innerHTML = '';
+  LANGUAGES
+    .filter(l => l.code !== 'auto')
+    .forEach(({ code, name }) => {
+      D.tgtLang.appendChild(new Option(name, code));
+    });
+  D.tgtLang.value = 'en';
+
+  /* Rebuild FROM dropdown */
+  D.srcLang.innerHTML = '';
+  LANGUAGES.forEach(({ code, name }) => {
+    D.srcLang.appendChild(new Option(name, code));
+  });
+  D.srcLang.value = 'auto';
+
   loadTheme();
   loadStorage();
   renderHistory();
   renderFavorites();
   bindEvents();
-
-  /* Set defaults AFTER DOM is ready */
-  if (D.srcLang) D.srcLang.value = 'auto';
-  if (D.tgtLang) D.tgtLang.value = 'en';
-
   syncPills();
   updateTgtPill();
 }
-  
 
 /* ─────────────────────────────────────────────────────
    BUILD LANGUAGE DROPDOWNS
