@@ -166,27 +166,24 @@ document.addEventListener('DOMContentLoaded', () => {
    INIT
 ───────────────────────────────────────────────────── */
 function init() {
-  buildSelects();
   loadTheme();
   loadStorage();
   renderHistory();
   renderFavorites();
   bindEvents();
+
+  /* Set defaults AFTER DOM is ready */
+  if (D.srcLang) D.srcLang.value = 'auto';
+  if (D.tgtLang) D.tgtLang.value = 'en';
+
   syncPills();
   updateTgtPill();
 }
+  
 
 /* ─────────────────────────────────────────────────────
    BUILD LANGUAGE DROPDOWNS
 ───────────────────────────────────────────────────── */
-function buildSelects() {
-  /*
-   * Options are already hardcoded in index.html.
-   * Just set default selected values — do NOT clear innerHTML.
-   */
-  D.srcLang.value = 'auto'; // default source: Auto Detect
-  D.tgtLang.value = 'en';   // default target: English
-}
 
 function getLangName(code) {
   if (!code || code === 'auto') return 'Auto';
